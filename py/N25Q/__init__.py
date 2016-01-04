@@ -153,9 +153,21 @@ class N25Q:
         while self.get_status()["write_in_progress"]:
             pass
         self.write_enable(False)
-        
 
     def enter_4_byte_address_mode(self):
         self.flash.write_enable()
         self.flash.cmd(0xb7)
         self.write_enable(False)
+
+    def write_image(self, image, addr=0):
+        addr0 = addr
+        num_subsectors = len(image)/4096
+        for subsector_idx in range(num_subsectors):
+            self.subsector_erase(addr)
+            for page in range(16):
+                self.write(addr, image[addr:addr+256])
+                addr += 256
+
+        image0 = self.read(addr0, len(image))
+        if(image != image0):
+            raise Exception("Read back verification failed")
