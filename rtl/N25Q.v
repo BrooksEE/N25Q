@@ -80,6 +80,7 @@ module N25Q
    
 `include "N25Q_CTRLTerminalInstance.v"
 
+   reg [1:0] pos;
    reg [31:0] N25Q_DATA_reg_datao;
    wire       N25Q_DATA_rdy = di_term_addr == `TERM_N25Q_DATA && (!di_write) && (!di_read_req) && (!busy) && (!go) && (pos == 0 || bytes_left == 0);
    
@@ -109,7 +110,6 @@ module N25Q
    reg [31:0] datai;
    wire [7:0] datao;
    reg 	      go;
-   wire [1:0] pos;
    reg [23:0] bytes_left;
    reg 	      mode_s;
    
@@ -178,7 +178,8 @@ module N25Q
 	 end
       end
    end
-   
+
+   wire csb0;
    spi_master 
      #(.DATA_WIDTH(8),
        .NUM_PORTS(1),
@@ -189,8 +190,8 @@ module N25Q
      (
       .clk(ifclk),
       .resetb(resetb),
-      .CPOL(1), 
-      .CPHA(1),
+      .CPOL(mode_cpol), 
+      .CPHA(mode_cpha),
       .clk_divider(clk_divider),
       
       .go(go),
@@ -201,10 +202,11 @@ module N25Q
       
       .dout(miso),
       .din(mosi),
-      .csb(csb),
+      .csb(csb0),
       .sclk(sclk)
       );
-   
+
+   assign csb   = csb1 && csb0;
    assign wp    = pins_wp;
    assign holdb = pins_holdb;
 endmodule
