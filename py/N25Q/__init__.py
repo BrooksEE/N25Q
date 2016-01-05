@@ -18,7 +18,8 @@ class N25Q:
     _READ              = 0x03
     _WRITE             = 0x02
     _BULK_ERASE        = 0xC7
-    
+    _ENTER_4_BYTE_ADDRESS_MODE = 0xB7
+    _SUBSECTOR_ERASE   = 0x20
     def __init__(self, dev, CTRL_TERM="N25Q_CTRL", DATA_TERM="N25Q_DATA"):
         self.dev = dev
         self.CTRL_TERM = CTRL_TERM
@@ -36,12 +37,8 @@ class N25Q:
             log.error("Error Reading Flash Memory ID: " + str(id[:4]))
             self.initialized = False
             return id
-        if(id[2] == 0x19):
-            self.size = 2**(10+10+5)
-            log.info("FLASH MEMORY SIZE CODE: 32MB")
-        else:
-            self.size = 0 # unknown
-            log.info("UNKNOWN FLASH MEMORY SIZE CODE: 0x%02x" % (id[2]))
+        self.size = 2**id[2]
+        log.info("FLASH MEMORY SIZE CODE: %d" % self.size)
 
         # set to 4 byte addressing mode
         x = self.get_nv_config()
@@ -149,13 +146,20 @@ class N25Q:
     def subsector_erase(self, addr):
         """Erases a 4KB chuck. Any address in the 4KB chuck will work"""
         self.write_enable()
-        self.cmd(self._BULK_ERASE)
+        self.cmd(bytearray([
+            self._SUBSECTOR_ERASE,
+             (addr >> 23) & 0xFF,
+             (addr >> 16) & 0xFF,
+             (addr >>  8) & 0xFF,
+             (addr >>  0) & 0xFF,
+            ]))
+        
         while self.get_status()["write_in_progress"]:
             pass
         self.write_enable(False)
         
 
     def enter_4_byte_address_mode(self):
-        self.flash.write_enable()
-        self.flash.cmd(0xb7)
+        self.write_enable()
+        self.cmd(self._ENTER_4_BYTE_ADDRESS_MODE)
         self.write_enable(False)

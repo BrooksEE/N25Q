@@ -21,7 +21,8 @@ SIM_FILES = \
 	sim/tb.v \
 	$(NITRO_PARTS_DIR)/lib/HostInterface/models/fx3.v \
 	$(NITRO_PARTS_DIR)/Micron/N25Q/sim/N25Q_sim.v \
-	$(NITRO_PARTS_DIR)/Micron/N25Q/sim/N25Q256A73E_VG12/code/N25Qxxx.v \
+
+#$(NITRO_PARTS_DIR)/Micron/N25Q/sim/N25Q256A73E_VG12/code/N25Qxxx.v \
 
 IVERILOG_FILES = sim/iverilog_tests.v
 
