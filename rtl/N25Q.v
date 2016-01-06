@@ -11,7 +11,7 @@ module N25Q
    input 	     di_write_mode,
    input 	     di_write,
    input [31:0]      di_len,
-   
+
    input [31:0]      di_reg_datai,
    output reg 	     di_read_rdy,
    output reg [31:0] di_reg_datao,

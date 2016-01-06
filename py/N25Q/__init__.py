@@ -125,6 +125,8 @@ class N25Q:
         return self.cmd(c, num_bytes)
 
     def write(self, addr, data):
+        if(len(data) > 256):
+            raise Exception("Can only write pages of 256 bytes at a time")
         self.write_enable()
         c = bytearray(
             [self._WRITE,

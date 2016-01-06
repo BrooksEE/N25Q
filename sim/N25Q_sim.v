@@ -38,7 +38,7 @@ module N25Q_sim
    wire [7:0] sri_buf2 = sri_buf[2];
    wire [7:0] sri_buf3 = sri_buf[3];
    wire [31:0] addr = {sri_buf[3], sri_buf[2], sri_buf[1], next_srin };
-   wire [31:0] waddr;
+   reg [31:0] waddr;
 
    wire [7:0] mem_data0 = mem_data[0];
    wire [7:0] mem_data1 = mem_data[1];
