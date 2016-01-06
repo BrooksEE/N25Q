@@ -26,38 +26,19 @@ module N25Q_sim
       resetb <= 1;
    end
 
-
    reg [7:0] sro_buf[0:1<<25];
    reg [7:0] sri_buf[0:256];
    reg [7:0] mem_data[0:1<<25];
    reg [8:0] rcv_count;
    reg [3:0] offset;
-
-   wire [7:0] sri_buf0 = sri_buf[0];
-   wire [7:0] sri_buf1 = sri_buf[1];
-   wire [7:0] sri_buf2 = sri_buf[2];
-   wire [7:0] sri_buf3 = sri_buf[3];
    wire [31:0] addr = {sri_buf[3], sri_buf[2], sri_buf[1], next_srin };
    reg [31:0] waddr;
 
-   wire [7:0] mem_data0 = mem_data[0];
-   wire [7:0] mem_data1 = mem_data[1];
-   wire [7:0] mem_data2 = mem_data[2];
-   wire [7:0] mem_data3 = mem_data[3];
-   wire [7:0] mem_data4 = mem_data[4];
-   wire [7:0] mem_data5 = mem_data[5];
-   wire [7:0] mem_data6 = mem_data[6];
-   wire [7:0] mem_data7 = mem_data[7];
-   wire [7:0] mem_data8 = mem_data[8];
-   wire [7:0] mem_data9 = mem_data[9];
-   
 //    _WRITE_STATUS      = 0x01
 //    _READ_LOCK         = 0xE8
 //    _WRITE_LOCK        = 0xE5
 //    _READ_FLAG_STATUS  = (0x70, 1)
 //    _CLEAR_FLAG_STATUS = 0x50
-//    _READ              = 0x03
-//    _WRITE             = 0x02
    reg 	     four_byte_addr_mode;
    reg 	     bulk_erase_in_progress, event_bulk_erase;
    reg [9:0] bulk_erase_counter;
@@ -177,23 +158,9 @@ module N25Q_sim
 		    sro_buf[0] <= 8'h20;
 		    sro_buf[1] <= 8'hBA;
  		    sro_buf[2] <= 8'h19;
-		    sro_buf[3] <= 8'h00;
- 		    sro_buf[4] <= 8'h00;
-		    sro_buf[5] <= 8'h00;
- 		    sro_buf[6] <= 8'h00;
-		    sro_buf[7] <= 8'h00;
- 		    sro_buf[8] <= 8'h00;
-		    sro_buf[9] <= 8'h00;
-		    sro_buf[10]<= 8'h00;
-		    sro_buf[11]<= 8'h00;
- 		    sro_buf[12]<= 8'h00;
-		    sro_buf[13]<= 8'h00;
- 		    sro_buf[14]<= 8'h00;
-		    sro_buf[15]<= 8'h00;
- 		    sro_buf[16]<= 8'h00;
-		    sro_buf[17]<= 8'h00;
- 		    sro_buf[18]<= 8'h00;
-		    sro_buf[19]<= 8'h00;
+		    for(j=3; j<20; j=j+1) begin
+		       sro_buf[j] <= 8'h00;
+		    end
 		    rstate <= STATE_SEND;
 		 end
 		 
