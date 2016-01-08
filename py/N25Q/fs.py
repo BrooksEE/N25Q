@@ -1,9 +1,10 @@
 import math, struct
 
 # File System ID - 32 bytes
-# 4 bytes - Sync : 0xAAFF5500
-# 2 bytes - version
-# 26 bytes - reserved
+# 8 bytes - Sync : "BROOKSEE"
+# 4 bytes - version
+# 4 bytes - length of fs header in bytes
+# 16 bytes - reserved
 
 # File Record - 32 bytes
 #  8 bytes - filename
@@ -25,7 +26,7 @@ class FileSystem(dict):
     def __init__(self):
         dict.__init__(self)
         self.bs   = 2**12
-        self.sync = '\xAA\xFF\x55\x00'
+        self.sync = 'BROOKSEE'
         self.version = 1
 
     def add_file(self, filename, data, file_type):
@@ -35,15 +36,22 @@ class FileSystem(dict):
         return x + ("\x00" * (size-len(x)))
 
     def file_record(self, k, v, addr):
-        crc = sum(ord(y) for y in v["data"]) & 0xFFFF
+        crc = 0
+        for y in v["data"]:
+            try:
+                crc += y
+            except:
+                crc += ord(y)
+        crc = crc & 0xFFFF
         y = struct.pack('IIHH', addr, len(v["data"]), v["type"], crc)
         x = self.pad(self.pad(k[:8], 8) + y, 32)
         return x
 
     def dump(self, f):
-        f.write(self.pad(self.sync + struct.pack("H", self.version), 32))
-        record_count = 1
         num_header_blocks = int(math.ceil((len(self)+2) * 32.0 / self.bs)) # add 2 records for start record and stop sentinal
+        header_len = num_header_blocks * self.bs
+        f.write(self.pad(self.sync + struct.pack("II", self.version, header_len), 32))
+        record_count = 1
         addr = self.bs * num_header_blocks
         keys = self.keys()
         so_far = 32
@@ -54,10 +62,39 @@ class FileSystem(dict):
             addr += size
             so_far += 32
         f.write("\x00" * (self.bs - (so_far % self.bs)))
-        
-
         for k in keys:
             v = self[k]
             size = int(math.ceil(len(v["data"]) / float(self.bs)) * self.bs)
             f.write(v["data"])
             f.write("\x00" * (size - len(v["data"])))
+
+    def decode_file_record(self, record):
+        name = record[:8].replace("\x00","")
+        addr, size, type, crc = struct.unpack("IIHH", record[8:20])
+        return dict(name=name, addr=addr, size=size, type=type, crc=crc)
+
+    @classmethod
+    def load(cls, f):
+        self = cls()
+        raw = f.read()
+        header = self.decode_file_record(raw[:32])
+        if(header["name"] != "BROOKSEE"):
+            raise Exception("UNKNOWN FILESYSTEM")
+        print "HEADER=", header
+        records = []
+        count = 1
+        while True:
+            record = self.decode_file_record(raw[32*count:32*(count+1)])
+            if record["addr"] == 0:
+                break
+            print count, " RECORD=", record
+            count += 1
+        
+            records.append(record)
+        for record in records:
+            self.add_file(record["name"], raw[record["addr"]:record["addr"]+record["size"]], record["type"])
+            self[record["name"]]["addr"] = record["addr"]
+            self[record["name"]]["size"] = record["size"]
+            
+        return self
+    

@@ -1,4 +1,4 @@
-import logging
+import logging, sys, time
 
 log = logging.getLogger("N25Q FLASH MEM")
 
@@ -32,7 +32,7 @@ class N25Q:
         id = self.get_id()
         log.info("READ_ID")
         for idx, x in enumerate(id):
-            log.info("  %02d: 0x%02x" % (idx, x))
+            log.debug("  %02d: 0x%02x" % (idx, x))
         if((id[0] != 0x20) or (id[1] != 0xBA)):
             log.error("Error Reading Flash Memory ID: " + str(id[:4]))
             self.initialized = False
@@ -127,6 +127,7 @@ class N25Q:
     def write(self, addr, data):
         if(len(data) > 256):
             raise Exception("Can only write pages of 256 bytes at a time")
+        log.debug(" WRITE PAGE: 0x%x" % addr)
         self.write_enable()
         c = bytearray(
             [self._WRITE,
@@ -147,6 +148,7 @@ class N25Q:
 
     def subsector_erase(self, addr):
         """Erases a 4KB chuck. Any address in the 4KB chuck will work"""
+        log.debug(" SUBSECTOR ERASE: 0x%x" % addr)
         self.write_enable()
         self.cmd(bytearray([
             self._SUBSECTOR_ERASE,
@@ -166,14 +168,34 @@ class N25Q:
         self.write_enable(False)
 
     def write_image(self, image, addr=0):
+        log.info(" WRITING IMAGE TO 0x%x LEN=%dMB" % (addr, len(image)/1e6))
         addr0 = addr
         num_subsectors = len(image)/4096
+        
+        log.info("  NUM_SUBSECTORS=%d" % num_subsectors)
+        N = 50
+        sys.stdout.write(" " * (N+20))
+        t0 = time.time()
         for subsector_idx in range(num_subsectors):
             self.subsector_erase(addr)
             for page in range(16):
                 self.write(addr, image[addr:addr+256])
                 addr += 256
+            n0 = subsector_idx * N / num_subsectors
+            t1 = int(time.time()-t0)
+            m = t1/60
+            s = t1 - m * 60
+            sys.stdout.write(("\b" * (N+20)) + "%5d/%5d |" % (subsector_idx+1,num_subsectors) + ("=" * n0) + (" " * (N-n0)) + "| %02d:%02d" % (m,s))
+            sys.stdout.flush()
 
-        image0 = self.read(addr0, len(image))
-        if(image != image0):
-            raise Exception("Read back verification failed")
+        self.verify_image(image, addr0)
+            
+    def verify_image(self, image, addr=0):
+        image0 = self.read(addr, len(image))
+        pos = 0
+        for x,y in zip(str(image), str(image0)):
+            if x != y:
+                import pdb
+                pdb.set_trace()
+                raise Exception("Read back verification failed at position 0x%x %d != %d" % (pos, ord(x), ord(y)))
+            pos += 1
