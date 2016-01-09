@@ -120,13 +120,14 @@ module N25Q
 	 datai <= 0;
 	 N25Q_DATA_reg_datao <= 0;
 	 bytes_left <= 0;
-	 mode_s <= di_write;
+	 mode_s <= 0;
       end else begin
 	 mode_s <= di_write_mode || di_read_mode;
 	 if(!di_write_mode && !di_read_mode) begin
 	    datai <= 0;
 	    pos   <= 0;
 	    bytes_left <= 0;
+	    go <= 0;
 	 end else if(di_term_addr == `TERM_N25Q_DATA) begin
 	    if((di_write_mode || di_read_mode) && !mode_s) begin
 	       bytes_left <= di_len[23:0];

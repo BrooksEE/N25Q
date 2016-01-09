@@ -113,7 +113,7 @@ module iverilog_tests;
       begin
 	 tb.fx3.setW(`TERM_N25Q_CTRL, `N25Q_CTRL_csb1, 1, 0);
 	 tb.fx3.rdwr_data_buf[0] = cmd;
-	 for(i=0; i<num_args; i++) begin
+	 for(i=0; i<num_args; i=i+1) begin
 	    tb.fx3.rdwr_data_buf[i+1] = args[i];
 	 end
 	 tb.fx3.write(`TERM_N25Q_DATA, 0, num_args+1);
@@ -129,7 +129,7 @@ module iverilog_tests;
       begin
 	 tb.fx3.setW(`TERM_N25Q_CTRL, `N25Q_CTRL_csb1, 1, 0);
 	 tb.fx3.rdwr_data_buf[0] = cmd;
-	 for(i=0; i<num_args; i++) begin
+	 for(i=0; i<num_args; i=i+1) begin
 	    tb.fx3.rdwr_data_buf[i+1] = args[i];
 	 end
 	 tb.fx3.write(`TERM_N25Q_DATA, 0, num_args+1);

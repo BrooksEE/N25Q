@@ -34,6 +34,28 @@ module N25Q_sim
    wire [31:0] addr = {sri_buf[3], sri_buf[2], sri_buf[1], next_srin };
    reg [31:0] waddr;
 
+   integer    f;
+   initial begin
+      f=$fopen("../py/flash.image" ,"rb");
+      if(f==0) begin
+	 $display("Could not open N25Q_DATA_FILE for read");
+      end
+      for(j=0; j<1<<25; j=j+1) begin
+	 mem_data[j] = 255;
+      end
+      j=0;
+      while(!$feof(f) && j<1<<25) begin
+	 mem_data[j] = $fgetc(f);
+	 j=j+1;
+      end
+   end
+   wire [7:0] mem_data0 = mem_data[0];
+   wire [7:0] mem_data1 = mem_data[1];
+   wire [7:0] mem_data2 = mem_data[2];
+   wire [7:0] mem_data3 = mem_data[3];
+   wire [7:0] mem_data4 = mem_data[4];
+   
+   
 //    _WRITE_STATUS      = 0x01
 //    _READ_LOCK         = 0xE8
 //    _WRITE_LOCK        = 0xE5
