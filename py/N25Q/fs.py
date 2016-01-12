@@ -12,7 +12,9 @@ import math, struct
 #  4 bytes - file length
 #  2 bytes - file type
 #  2 bytes - CRC
-# 12 bytes - reserved
+#  2 bytes - width
+#  2 bytes - height
+#  8 bytes - reserved
 
 # File Types
 file_types = dict(
@@ -29,8 +31,13 @@ class FileSystem(dict):
         self.sync = 'BROOKSEE'
         self.version = 1
 
-    def add_file(self, filename, data, file_type):
-        self[filename[:8]] = dict(data=data, type=file_type)
+    def add_file(self, filename, data, file_type, width=None, height=None):
+        x = dict(data=data, type=file_type)
+        if width:
+            x["width"] = width
+        if height:
+            x["height"] = height
+        self[filename[:8]] = x
 
     def pad(self, x, size=32):
         return x + ("\x00" * (size-len(x)))
@@ -44,6 +51,14 @@ class FileSystem(dict):
                 crc += ord(y)
         crc = crc & 0xFFFF
         y = struct.pack('IIHH', addr, len(v["data"]), v["type"], crc)
+        if "width" in v:
+            y += struct.pack("H", v["width"])
+        else:
+            y += "\x00\x00"
+        if "height" in v:
+            y += struct.pack("H", v["height"])
+        else:
+            y += "\x00\x00"
         x = self.pad(self.pad(k[:8], 8) + y, 32)
         return x
 
