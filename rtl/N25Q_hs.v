@@ -80,7 +80,7 @@ module N25Q
    
 `include "N25Q_CTRLTerminalInstance.v"
 
-   reg [31:0] N25Q_reg_datao;
+   reg [31:0] sri;
    wire       N25Q_rdy;
    always @(*) begin
       if(di_term_addr == `TERM_N25Q_CTRL) begin
@@ -91,7 +91,7 @@ module N25Q
          di_transfer_status = 0;
       end else if(di_term_addr == `TERM_N25Q_DATA) begin
          di_N25Q_en   = 1;
-         di_reg_datao = { N25Q_reg_datao[7:0], N25Q_reg_datao[15:8], N25Q_reg_datao[23:16], N25Q_reg_datao[31:24] };
+         di_reg_datao = { sri[7:0], sri[15:8], sri[23:16], sri[31:24] };
          di_read_rdy  = N25Q_rdy;
          di_write_rdy = N25Q_rdy;
          di_transfer_status = 0;
@@ -145,7 +145,7 @@ module N25Q
 	       if(bitpos == 7) begin
 		  byte_count <= next_byte_count;
 		  /* verilator lint_off WIDTH */
-		  if(next_byte_count == di_len || next_byte_count[1:0] == 0) begin
+		  if(next_byte_count >= di_len || next_byte_count[1:0] == 0) begin
 		  /* verilator lint_on WIDTH */
 		     state <= IDLE;
 		     rdy <= 1;
@@ -159,17 +159,25 @@ module N25Q
    reg sclk_en;
 
    wire clk_en = state == READ_WRITE;
-   always @(negedge ifclk) begin
-      sclk_en <= clk_en;
-   end
-
-   always @(posedge sclk) begin
-      N25Q_reg_datao <= { N25Q_reg_datao[30:0], miso };
+   wire [4:0] sri_pos = 5'd31 - {byte_count[1:0], bitpos};
+   reg [4:0]  sri_pos_s;
+   reg 	      miso_sp, miso_sn;
+   reg 	      sclk_en_s;
+   
+   always @(posedge ifclk) begin
+      sclk_en_s <= clk_en;
+      sri_pos_s <= sri_pos;
+      miso_sp   <= miso;
+      if(sclk_en_s) begin
+	 sri[sri_pos_s] <= miso_sn;
+      end
    end
    
    reg [4:0] wpos;
    wire [4:0] next_wpos = wpos - 1;
    always @(negedge ifclk) begin
+      miso_sn <= miso;
+      sclk_en <= clk_en;
       if(!di_write_mode) begin
 	 wpos <= 0;
       end else if(clk_en) begin
@@ -177,9 +185,11 @@ module N25Q
       end
       mosi <= sro[next_wpos];
    end
+
    
-   assign sclk = sclk_en & ifclk;
-   
+   //assign sclk = sclk_en & ifclk;
+   ODDR2 sclko(.Q(sclk), .C0(ifclk), .C1(~ifclk), .CE(sclk_en), .D0(1), .D1(0), .R(0), .S(0));
+
    assign csb   = csb1;
    assign wp    = pins_wp;
    assign holdb = pins_holdb;

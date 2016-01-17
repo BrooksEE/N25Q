@@ -82,7 +82,6 @@ class FileSystem(dict):
             v = self[k]
             f.write(v["data"])
             f.write("\x00" * (v["__size"] - len(v["data"])))
-            print v["__size"], len(v["data"])
 
     def decode_file_record(self, record):
         name = record[:8].replace("\x00","")
