@@ -46,7 +46,8 @@ class N25Q:
         x[1] = 0xFF
         self.set_nv_config(x)
         self.enter_4_byte_address_mode()
-        
+        time.sleep(0.5)
+        self.read(0,4)
         self.initialized = True
         return id
     
@@ -188,9 +189,12 @@ class N25Q:
             sys.stdout.write(("\b" * (N+20)) + "%5d/%5d |" % (subsector_idx+1,num_subsectors) + ("=" * n0) + (" " * (N-n0)) + "| %02d:%02d" % (m,s))
             sys.stdout.flush()
 
+        time.sleep(0.5)
+        self.read(0,4)
         self.verify_image(image, addr0)
             
     def verify_image(self, image, addr=0):
+        self.read(0,4)
         image0 = self.read(addr, len(image))
         pos = 0
         for x,y in zip(str(image), str(image0)):

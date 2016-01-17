@@ -45,7 +45,7 @@ module iverilog_tests;
       write_cmd(8'hB7, 0); // enter 4 byte addr mode
 
       write_cmd(8'h06, 0); // write enable
-      args[0] = 8'h00;
+      args[0] = 8'h00; // first four bytes are the address
       args[1] = 8'h00;
       args[2] = 8'h00;
       args[3] = 8'h00;
@@ -56,9 +56,30 @@ module iverilog_tests;
       write_cmd(8'h02, 8); // page program
 
       wait_for_write();
+
+      write_cmd(8'h06, 0); // write enable
+      args[0] = 8'h00; // first four bytes are the address
+      args[1] = 8'h10;
+      args[2] = 8'h00;
+      args[3] = 8'h00;
+      args[4] = 8'h21;
+      args[5] = 8'h22;
+      args[6] = 8'h23;
+      args[7] = 8'h24;
+      args[7] = 8'h25;
+      write_cmd(8'h02, 9); // page program
       
-      read_cmd(8'h03, 4, 4); // read
-      for(j=0; j<4; j=j+1) begin
+      wait_for_write();
+      
+      read_cmd(8'h03, 5, 4106); // read
+      args[0] = 8'h00; // first four bytes are the address
+      args[1] = 8'h00;
+      args[2] = 8'h00;
+      args[3] = 8'h00;
+      for(j=0; j<10; j=j+1) begin
+	 $display("%d: %x", j, rdata[j]);
+      end
+      for(j=4096; j<4106; j=j+1) begin
 	 $display("%d: %x", j, rdata[j]);
       end
       

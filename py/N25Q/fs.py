@@ -72,16 +72,17 @@ class FileSystem(dict):
         so_far = 32
         for k in keys:
             v = self[k]
-            size = math.ceil(len(v["data"]) / self.bs) * self.bs
+            size = int(math.ceil(len(v["data"]) / float(self.bs)) * self.bs)
             f.write(self.file_record(k, v, addr))
+            v["__size"] = size
             addr += size
             so_far += 32
         f.write("\x00" * (self.bs - (so_far % self.bs)))
         for k in keys:
             v = self[k]
-            size = int(math.ceil(len(v["data"]) / float(self.bs)) * self.bs)
             f.write(v["data"])
-            f.write("\x00" * (size - len(v["data"])))
+            f.write("\x00" * (v["__size"] - len(v["data"])))
+            print v["__size"], len(v["data"])
 
     def decode_file_record(self, record):
         name = record[:8].replace("\x00","")
