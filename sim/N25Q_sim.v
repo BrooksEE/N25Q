@@ -8,7 +8,10 @@ module N25Q_sim
    input  holdb
    );
 
-`ifdef verilator
+
+`define TRUE
+   
+`ifdef TRUE
    reg [2:0] rpos;
    reg [3:0] rstate, next_rstate;
    parameter STATE_RX_CMD = 0, STATE_SEND=1, STATE_RCV=2, STATE_RCV_NV_CONFIG=3, STATE_WRITE=4, STATE_READ=5, STATE_RCV_WRITE=6, STATE_SUBSECTOR_ERASE=7;

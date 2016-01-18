@@ -1,3 +1,4 @@
+`include "terminals_defs.v"
 module N25Q
   (
    input 	     ifclk,
