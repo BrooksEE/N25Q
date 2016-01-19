@@ -34,9 +34,9 @@ class N25Q:
         for idx, x in enumerate(id):
             log.debug("  %02d: 0x%02x" % (idx, x))
         if((id[0] != 0x20) or (id[1] != 0xBA)):
-            log.error("Error Reading Flash Memory ID: " + str(id[:4]))
+            log.error("Error Reading Flash Memory ID: 0x%02x 0x%02x" % (id[0], id[1]))
             self.initialized = False
-            return id
+            raise Exception("Error Reading Flash Memory ID")
         self.size = 2**id[2]
         log.info("FLASH MEMORY SIZE CODE: %d" % self.size)
 
@@ -169,24 +169,35 @@ class N25Q:
         self.write_enable(False)
 
     def write_image(self, image, addr=0):
+#        image = image[:4096*1]
         log.info(" WRITING IMAGE TO 0x%x LEN=%dMB" % (addr, len(image)/1e6))
         addr0 = addr
         num_subsectors = len(image)/4096
         
         log.info("  NUM_SUBSECTORS=%d" % num_subsectors)
         N = 50
-        sys.stdout.write(" " * (N+20))
+        sys.stdout.write(" ")
         t0 = time.time()
         for subsector_idx in range(num_subsectors):
-            self.subsector_erase(addr)
-            for page in range(16):
-                self.write(addr, image[addr:addr+256])
-                addr += 256
+            addr1 = addr
+            def write_subsector(addr):
+                self.subsector_erase(addr)
+                for page in range(16):
+                    self.write(addr, image[addr:addr+256])
+                    addr += 256
+                return addr
+            addr = write_subsector(addr)
+#            r = self.read(addr1, 4096)
+#            for idx, (x,y) in enumerate(zip(str(r), image[addr1:addr1+4096])):
+#                if(x != y):
+#                    print " mismatch", idx, "0x%02x 0x%02x" % (ord(y), ord(x))
+            
+            
             n0 = subsector_idx * N / num_subsectors
             t1 = int(time.time()-t0)
             m = t1/60
             s = t1 - m * 60
-            sys.stdout.write(("\b" * (N+20)) + "%5d/%5d |" % (subsector_idx+1,num_subsectors) + ("=" * n0) + (" " * (N-n0)) + "| %02d:%02d" % (m,s))
+            sys.stdout.write("\r%5d/%5d |" % (subsector_idx+1,num_subsectors) + ("=" * n0) + (" " * (N-n0)) + "| %02d:%02d" % (m,s))
             sys.stdout.flush()
 
         time.sleep(0.5)
@@ -199,7 +210,5 @@ class N25Q:
         pos = 0
         for x,y in zip(str(image), str(image0)):
             if x != y:
-                import pdb
-                pdb.set_trace()
                 raise Exception("Read back verification failed at position 0x%x %d != %d" % (pos, ord(x), ord(y)))
             pos += 1

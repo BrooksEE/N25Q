@@ -116,8 +116,10 @@ module N25Q
    reg 	       state;
    parameter IDLE=0, READ_WRITE=1;
 
-   reg [31:0] sro;
+   reg [30:0] sro;
    reg [2:0] bitpos;
+   reg 	     toggle;
+   
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
 	 rdy        <= 0;
@@ -125,31 +127,37 @@ module N25Q
 	 bitpos     <= 0;
 	 state      <= 0;
 	 sro        <= 0;
+	 toggle     <= 0;
+	 mosi       <= 0;
       end else begin
 	 if((!di_write_mode && !di_read_mode) || di_term_addr != `TERM_N25Q_DATA) begin
 	    state      <= IDLE;
 	    rdy        <= 1;
 	    byte_count <= 0;
+	    toggle     <= 0;
 	 end else begin
-	    if(we) begin
-	       sro <= { di_reg_datai[7:0], di_reg_datai[15:8], di_reg_datai[23:16], di_reg_datai[31:24] };
-	    end else if(re) begin
-	       sro <= 0;
-	    end
 	    
 	    if(we || re) begin
 	       state  <= READ_WRITE;
 	       rdy    <= 0;
 	       bitpos <= 0;
+	       toggle <= 0;
+	       mosi   <= di_reg_datai[7];
+	       sro    <= { di_reg_datai[6:0], di_reg_datai[15:8], di_reg_datai[23:16], di_reg_datai[31:24] };
 	    end else if(state == READ_WRITE) begin
-	       bitpos <= bitpos + 1;
-	       if(bitpos == 7) begin
-		  byte_count <= next_byte_count;
-		  /* verilator lint_off WIDTH */
-		  if(next_byte_count >= di_len || next_byte_count[1:0] == 0) begin
-		  /* verilator lint_on WIDTH */
-		     state <= IDLE;
-		     rdy <= 1;
+	       toggle <= !toggle;
+	       if(toggle) begin
+		  mosi <= sro[30];
+		  sro  <= sro << 1;
+		  bitpos <= bitpos + 1;
+		  if(bitpos == 7) begin
+		     byte_count <= next_byte_count;
+		     /* verilator lint_off WIDTH */
+		     if(next_byte_count >= di_len || next_byte_count[1:0] == 0) begin
+			/* verilator lint_on WIDTH */
+			state <= IDLE;
+			rdy <= 1;
+		     end
 		  end
 	       end
 	    end
@@ -157,40 +165,19 @@ module N25Q
       end
    end
 
-   reg sclk_en;
-
-   wire clk_en = state == READ_WRITE;
    wire [4:0] sri_pos = 5'd31 - {byte_count[1:0], bitpos};
-   reg [4:0]  sri_pos_s;
-   reg 	      miso_sp, miso_sn;
-   reg 	      sclk_en_s;
+   reg 	      miso_s;
    
    always @(posedge ifclk) begin
-      sclk_en_s <= clk_en;
-      sri_pos_s <= sri_pos;
-      miso_sp   <= miso;
-      if(sclk_en_s) begin
-	 sri[sri_pos_s] <= miso_sn;
+      miso_s <= miso;
+      if(toggle) begin
+	 sri[sri_pos] <= miso_s;
       end
    end
-   
-   reg [4:0] wpos;
-   wire [4:0] next_wpos = wpos - 1;
-   always @(negedge ifclk) begin
-      miso_sn <= miso;
-      sclk_en <= clk_en;
-      if(!di_write_mode) begin
-	 wpos <= 0;
-      end else if(clk_en) begin
-	 wpos <= next_wpos;
-      end
-      mosi <= sro[next_wpos];
-   end
-
    
    //assign sclk = sclk_en & ifclk;
-   ODDR2 sclko(.Q(sclk), .C0(ifclk), .C1(~ifclk), .CE(sclk_en), .D0(1), .D1(0), .R(0), .S(0));
-
+   //ODDR2 sclko(.Q(sclk), .C0(ifclk), .C1(~ifclk), .CE(sclk_en), .D0(1), .D1(0), .R(0), .S(0));
+   assign sclk = toggle;
    assign csb   = csb1;
    assign wp    = pins_wp;
    assign holdb = pins_holdb;
