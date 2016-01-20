@@ -46,7 +46,7 @@ class N25Q:
         x[1] = 0xFF
         self.set_nv_config(x)
         self.enter_4_byte_address_mode()
-        time.sleep(0.5)
+        time.sleep(0.03)
         self.read(0,4)
         self.initialized = True
         return id
@@ -75,6 +75,7 @@ class N25Q:
             self.dev.write(self.DATA_TERM, 0, cmd)
             if num_read_bytes > 0:
                 x = bytearray(num_read_bytes)
+                #time.sleep(0.003)
                 self.dev.read(self.DATA_TERM, 0, x)
         finally:
             self.dev.set(self.CTRL_TERM, "csb1", 1)
@@ -108,11 +109,11 @@ class N25Q:
 
     def write_enable(self, enable=True):
         if enable:
-            self.dev.set(self.CTRL_TERM, "pins.wp", 1)
             self.cmd(self._WRITE_ENABLE)
+            self.dev.set(self.CTRL_TERM, "pins.wp", 1)
         else:
-            self.dev.set(self.CTRL_TERM, "pins.wp", 0)
             self.cmd(self._WRITE_DISABLE)
+            self.dev.set(self.CTRL_TERM, "pins.wp", 0)
         
 
     def read(self, addr, num_bytes):
@@ -130,6 +131,7 @@ class N25Q:
             raise Exception("Can only write pages of 256 bytes at a time")
         log.debug(" WRITE PAGE: 0x%x" % addr)
         self.write_enable()
+#        time.sleep(0.01)
         c = bytearray(
             [self._WRITE,
              (addr >> 23) & 0xFF,
@@ -138,6 +140,9 @@ class N25Q:
              (addr >>  0) & 0xFF,
             ]) + bytearray(data)
         self.cmd(c)
+#        time.sleep(0.01)
+        while self.get_status()["write_in_progress"]:
+            pass
         self.write_enable(False)
 
     def bulk_erase(self):
@@ -151,6 +156,7 @@ class N25Q:
         """Erases a 4KB chuck. Any address in the 4KB chuck will work"""
         log.debug(" SUBSECTOR ERASE: 0x%x" % addr)
         self.write_enable()
+#        time.sleep(0.01)
         self.cmd(bytearray([
             self._SUBSECTOR_ERASE,
              (addr >> 23) & 0xFF,
@@ -159,6 +165,7 @@ class N25Q:
              (addr >>  0) & 0xFF,
             ]))
         
+#        time.sleep(0.01)
         while self.get_status()["write_in_progress"]:
             pass
         self.write_enable(False)
@@ -184,15 +191,30 @@ class N25Q:
                 self.subsector_erase(addr)
                 for page in range(16):
                     self.write(addr, image[addr:addr+256])
+                    r0 = self.read(addr, 256)
+                    r = r1  = self.read(addr, 256)
+                    if r0 != r1:
+                        log.error("Reads mismatched")
+                    if str(r) != str(image[addr:addr+256]):
+                        raise Exception("Read verify failed: page=" + str(page))
                     addr += 256
                 return addr
-            addr = write_subsector(addr)
-#            r = self.read(addr1, 4096)
-#            for idx, (x,y) in enumerate(zip(str(r), image[addr1:addr1+4096])):
-#                if(x != y):
-#                    print " mismatch", idx, "0x%02x 0x%02x" % (ord(y), ord(x))
-            
-            
+            retry = 0
+            while True:
+                try:
+                    addr = write_subsector(addr)
+                    break
+                except Exception,e:
+                    if str(e).startswith("Read verify failed"):
+                        if retry >= 0:
+                            log.info(str(subsector_idx) + " " + str(e) + ". Retrying " + str(retry))
+                        time.sleep(0.1)
+                    else:
+                        raise
+                    retry += 1
+                    if retry > 10:
+                        raise
+                    
             n0 = subsector_idx * N / num_subsectors
             t1 = int(time.time()-t0)
             m = t1/60
@@ -205,10 +227,40 @@ class N25Q:
         self.verify_image(image, addr0)
             
     def verify_image(self, image, addr=0):
-        self.read(0,4)
-        image0 = self.read(addr, len(image))
-        pos = 0
-        for x,y in zip(str(image), str(image0)):
-            if x != y:
-                raise Exception("Read back verification failed at position 0x%x %d != %d" % (pos, ord(x), ord(y)))
-            pos += 1
+        for i in range(10):
+            self.read(0,4)
+        time.sleep(0.5)
+        mismatch = 0
+        N = 50
+        pages = len(image)/256
+        t0 = time.time()
+        log.info("VERIFYING IMAGE")
+        for page in range(pages):
+            addr0 = page * 256 + addr
+            while True: # read page twice until they match
+                r0 = self.read(addr0, 256)
+                r1 = self.read(addr0, 256)
+                r2 = self.read(addr0, 256)
+                    
+                if r0 == r1 and r2 == r1:
+                    break
+
+                #log.error("Retrying read page " + str(page))
+            if(r0 != image[addr0:addr0+256]):
+                log.error("Page mismatch at addr=" + hex(addr0))
+                print "Read:", str(r0).encode("hex")
+                print "Actu:", str(image[addr0:addr0+256]).encode("hex")
+                mismatch += 1
+
+            if(page % 16 == 0): # update page count printing occasionally 
+                n0 = page * N / pages
+                t1 = int(time.time()-t0)
+                m = t1/60
+                s = t1 - m * 60
+                sys.stdout.write("\r%5d/%5d |" % (page,pages) + ("." * n0) + (" " * (N-n0)) + "| %02d:%02d" % (m,s))
+                sys.stdout.flush()
+                
+        if mismatch:
+            raise Exception(str(mismatch), " page mismatch(s) found")
+        else:
+            log.info("Verification Passed")
