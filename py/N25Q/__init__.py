@@ -51,7 +51,7 @@ class N25Q:
         self.initialized = True
         return id
     
-    def reset_system():
+    def reset_system(self):
         self.dev.set(self.CTRL_TERM, "pins.holdb", 0)
         
     def cmd(self, cmd, num_read_bytes=0):
@@ -175,7 +175,7 @@ class N25Q:
         self.cmd(self._ENTER_4_BYTE_ADDRESS_MODE)
         self.write_enable(False)
 
-    def write_image(self, image, addr=0):
+    def write_image(self, image, addr=0, verify_while_writing=True):
 #        image = image[:4096*1]
         log.info(" WRITING IMAGE TO 0x%x LEN=%dMB" % (addr, len(image)/1e6))
         addr0 = addr
@@ -186,17 +186,15 @@ class N25Q:
         sys.stdout.write(" ")
         t0 = time.time()
         for subsector_idx in range(num_subsectors):
-            addr1 = addr
+            iaddr = subsector_idx * 4096
             def write_subsector(addr):
                 self.subsector_erase(addr)
                 for page in range(16):
-                    self.write(addr, image[addr:addr+256])
-                    r0 = self.read(addr, 256)
-                    r = r1  = self.read(addr, 256)
-                    if r0 != r1:
-                        log.error("Reads mismatched")
-                    if str(r) != str(image[addr:addr+256]):
-                        raise Exception("Read verify failed: page=" + str(page))
+                    self.write(addr, image[iaddr+(page*256):iaddr+(page+1)*256])
+                    if verify_while_writing:
+                        r = self.read(addr, 256)
+                        if str(r) != str(image[iaddr+(page*256):iaddr+(page+1)*256]):
+                            raise Exception("Read verify failed: page=" + str(page))
                     addr += 256
                 return addr
             retry = 0
@@ -222,8 +220,6 @@ class N25Q:
             sys.stdout.write("\r%5d/%5d |" % (subsector_idx+1,num_subsectors) + ("=" * n0) + (" " * (N-n0)) + "| %02d:%02d" % (m,s))
             sys.stdout.flush()
 
-        time.sleep(0.5)
-        self.read(0,4)
         self.verify_image(image, addr0)
             
     def verify_image(self, image, addr=0):
@@ -237,6 +233,7 @@ class N25Q:
         log.info("VERIFYING IMAGE")
         for page in range(pages):
             addr0 = page * 256 + addr
+            iaddr = page * 256
             while True: # read page twice until they match
                 r0 = self.read(addr0, 256)
                 r1 = self.read(addr0, 256)
@@ -246,10 +243,10 @@ class N25Q:
                     break
 
                 #log.error("Retrying read page " + str(page))
-            if(r0 != image[addr0:addr0+256]):
+            if(r0 != image[iaddr:iaddr+256]):
                 log.error("Page mismatch at addr=" + hex(addr0))
                 print "Read:", str(r0).encode("hex")
-                print "Actu:", str(image[addr0:addr0+256]).encode("hex")
+                print "Actu:", str(image[iaddr:iaddr+256]).encode("hex")
                 mismatch += 1
 
             if(page % 16 == 0): # update page count printing occasionally 
