@@ -208,7 +208,7 @@ module N25Q
       );
 
    assign csb   = csb1 && csb0;
-   assign wp    = pins_wp;
+   assign wp    = pins_wpb;
    assign holdb = pins_holdb;
 endmodule
 

@@ -35,6 +35,7 @@ class N25Q:
             log.debug("  %02d: 0x%02x" % (idx, x))
         if((id[0] != 0x20) or (id[1] != 0xBA)):
             log.error("Error Reading Flash Memory ID: 0x%02x 0x%02x" % (id[0], id[1]))
+            log.error("  ID=" + " ".join("%02x" % h for h in id))
             self.initialized = False
             raise Exception("Error Reading Flash Memory ID")
         self.size = 2**id[2]
@@ -46,8 +47,6 @@ class N25Q:
         x[1] = 0xFF
         self.set_nv_config(x)
         self.enter_4_byte_address_mode()
-        time.sleep(0.03)
-        self.read(0,4)
         self.initialized = True
         return id
     
@@ -110,10 +109,10 @@ class N25Q:
     def write_enable(self, enable=True):
         if enable:
             self.cmd(self._WRITE_ENABLE)
-            self.dev.set(self.CTRL_TERM, "pins.wp", 1)
+            self.dev.set(self.CTRL_TERM, "pins.wpb", 1)
         else:
             self.cmd(self._WRITE_DISABLE)
-            self.dev.set(self.CTRL_TERM, "pins.wp", 0)
+            self.dev.set(self.CTRL_TERM, "pins.wpb", 0)
         
 
     def read(self, addr, num_bytes):
@@ -175,7 +174,7 @@ class N25Q:
         self.cmd(self._ENTER_4_BYTE_ADDRESS_MODE)
         self.write_enable(False)
 
-    def write_image(self, image, addr=0, verify_while_writing=True):
+    def write_image(self, image, addr=0):
 #        image = image[:4096*1]
         log.info(" WRITING IMAGE TO 0x%x LEN=%dMB" % (addr, len(image)/1e6))
         addr0 = addr
@@ -191,28 +190,10 @@ class N25Q:
                 self.subsector_erase(addr)
                 for page in range(16):
                     self.write(addr, image[iaddr+(page*256):iaddr+(page+1)*256])
-                    if verify_while_writing:
-                        r = self.read(addr, 256)
-                        if str(r) != str(image[iaddr+(page*256):iaddr+(page+1)*256]):
-                            raise Exception("Read verify failed: page=" + str(page))
                     addr += 256
                 return addr
             retry = 0
-            while True:
-                try:
-                    addr = write_subsector(addr)
-                    break
-                except Exception,e:
-                    if str(e).startswith("Read verify failed"):
-                        if retry >= 0:
-                            log.info(str(subsector_idx) + " " + str(e) + ". Retrying " + str(retry))
-                        time.sleep(0.1)
-                    else:
-                        raise
-                    retry += 1
-                    if retry > 10:
-                        raise
-                    
+            addr = write_subsector(addr)
             n0 = subsector_idx * N / num_subsectors
             t1 = int(time.time()-t0)
             m = t1/60
@@ -223,9 +204,6 @@ class N25Q:
         self.verify_image(image, addr0)
             
     def verify_image(self, image, addr=0):
-        for i in range(10):
-            self.read(0,4)
-        time.sleep(0.5)
         mismatch = 0
         N = 50
         pages = len(image)/256
@@ -234,15 +212,8 @@ class N25Q:
         for page in range(pages):
             addr0 = page * 256 + addr
             iaddr = page * 256
-            while True: # read page twice until they match
-                r0 = self.read(addr0, 256)
-                r1 = self.read(addr0, 256)
-                r2 = self.read(addr0, 256)
-                    
-                if r0 == r1 and r2 == r1:
-                    break
+            r0 = self.read(addr0, 256)
 
-                #log.error("Retrying read page " + str(page))
             if(r0 != image[iaddr:iaddr+256]):
                 log.error("Page mismatch at addr=" + hex(addr0))
                 print "Read:", str(r0).encode("hex")
@@ -254,7 +225,7 @@ class N25Q:
                 t1 = int(time.time()-t0)
                 m = t1/60
                 s = t1 - m * 60
-                sys.stdout.write("\r%5d/%5d |" % (page,pages) + ("." * n0) + (" " * (N-n0)) + "| %02d:%02d" % (m,s))
+                sys.stdout.write("\r%5d/%5d |" % (page/16,pages/16) + ("." * n0) + (" " * (N-n0)) + "| %02d:%02d" % (m,s))
                 sys.stdout.flush()
                 
         if mismatch:

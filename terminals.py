@@ -25,7 +25,7 @@ di=DeviceInterface(
                          mode='write',
                          comment='Pins on N25Q',
                          subregs = [
-                             SubReg(name="wp", width=1, init=1),
+                             SubReg(name="wpb",   width=1, init=0),
                              SubReg(name='holdb', width=1, init=1),
                          ],
                      ),
