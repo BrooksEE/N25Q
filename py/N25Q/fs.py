@@ -90,7 +90,8 @@ class FileSystem(dict):
             f.write(v["data"])
             f.write("\x00" * (v["__size"] - len(v["data"])))
 
-    def decode_file_record(self, record):
+    @classmethod
+    def decode_file_record(cls, record):
         name = record[:8].replace("\x00","")
         addr, size, type, crc = struct.unpack("IIHH", record[8:20])
         width,height = struct.unpack("HH", record[20:24])
@@ -121,3 +122,29 @@ class FileSystem(dict):
             
         return self
     
+
+def get_file_info(flash, filename):
+    raw    = flash.read(0, 32)
+    header = FileSystem.decode_file_record(raw)
+    if(header["name"] != "BROOKSEE"):
+        raise Exception("UNKNOWN FILESYSTEM")
+
+    addr = 32
+    while True:
+        raw = flash.read(addr, 32)
+        record = FileSystem.decode_file_record(raw)
+        addr += 32
+        if record["addr"] == 0:
+            raise Exception("File Not Found")
+        if record["name"] == filename:
+            return record
+        if addr > 32*1000:
+            raise Exception("Out of bounds")
+
+def get_file_from_info(flash, info):
+    return flash.read(info["addr"], info["size"])
+
+def get_file(flash, filename):
+    return get_file_from_info(get_file_info(flash, filename))
+
+
