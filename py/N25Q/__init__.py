@@ -66,9 +66,11 @@ class N25Q:
             cmd = cmd0
 
         #log.info("N25Q CMD: " + str(["0x%02x" % x for x in cmd]) + " read=" + str(num_read_bytes))
+        if self.dev.get(self.CTRL_TERM, "mode.bit_bang"):
+            return self.cmd_bit_bang(cmd, num_read_bytes)
 
         self.dev.set(self.CTRL_TERM, "csb1", 0)
-            
+
         x = None
         try:
             self.dev.write(self.DATA_TERM, 0, cmd)
@@ -80,6 +82,37 @@ class N25Q:
             self.dev.set(self.CTRL_TERM, "csb1", 1)
         return x
 
+        self.dev.set(self.CTRL_TERM, "csb1", 0)
+
+    def cmd_bit_bang(self, cmd, num_read_bytes=0):
+        self.dev.set(self.CTRL_TERM, "csb1", 0)
+        x = None
+        try:
+            self.write_bb(cmd)
+            if num_read_bytes > 0:
+                x = bytearray(num_read_bytes)
+                #time.sleep(0.003)
+                self.read_bb(x)
+        finally:
+            self.dev.set(self.CTRL_TERM, "csb1", 1)
+        return x
+
+    def write_bb(self, cmd):
+        for x in cmd:
+            for b in range(8):
+                self.dev.set(self.CTRL_TERM, "pins.mosi", (x >> (7-b)) & 0x1)
+                self.dev.set(self.CTRL_TERM, "pins.sclk", 1)
+                self.dev.set(self.CTRL_TERM, "pins.sclk", 0)
+                             
+    def read_bb(self, buf):
+        for pos in range(len(buf)):
+            x = 0
+            for b in range(8):
+                self.dev.set(self.CTRL_TERM, "pins.sclk", 1)
+                x = (x << 1) | self.dev.get(self.CTRL_TERM, "miso_s")
+                self.dev.set(self.CTRL_TERM, "pins.sclk", 0)
+            buf[pos] = x
+        
     def get_status(self):
         x = self.cmd(*self._READ_STATUS)[0]
         return dict(
@@ -174,7 +207,7 @@ class N25Q:
         self.cmd(self._ENTER_4_BYTE_ADDRESS_MODE)
         self.write_enable(False)
 
-    def write_image(self, image, addr=0):
+    def write_image(self, image, addr=0, verify_while_writing=True):
 #        image = image[:4096*1]
         log.info(" WRITING IMAGE TO 0x%x LEN=%dMB" % (addr, len(image)/1e6))
         addr0 = addr
@@ -190,10 +223,28 @@ class N25Q:
                 self.subsector_erase(addr)
                 for page in range(16):
                     self.write(addr, image[iaddr+(page*256):iaddr+(page+1)*256])
+                    if verify_while_writing:
+                        r = self.read(addr, 256)
+                        if str(r) != str(image[iaddr+(page*256):iaddr+(page+1)*256]):
+                            raise Exception("Read verify failed: page=" + str(page))
                     addr += 256
                 return addr
             retry = 0
-            addr = write_subsector(addr)
+            while True:
+                try:
+                    addr = write_subsector(addr)
+                    break
+                except Exception,e:
+                    if str(e).startswith("Read verify failed"):
+                        if retry >= 0:
+                            log.info(str(subsector_idx) + " " + str(e) + ". Retrying " + str(retry))
+                        time.sleep(0.1)
+                    else:
+                        raise
+                    retry += 1
+                    if retry > 10:
+                        raise
+#            addr = write_subsector(addr)
             n0 = subsector_idx * N / num_subsectors
             t1 = int(time.time()-t0)
             m = t1/60

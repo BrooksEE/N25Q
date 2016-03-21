@@ -82,6 +82,7 @@ module N25Q
 
 
    wire   di_clk = ifclk;
+   reg 	      miso_s;
    
 `include "N25Q_CTRLTerminalInstance.v"
 
@@ -134,7 +135,10 @@ module N25Q
 	 toggle     <= 0;
 	 mosi       <= 0;
       end else begin
-	 if((!di_write_mode && !di_read_mode) || di_term_addr != `TERM_N25Q_DATA) begin
+	 if(mode_bit_bang) begin
+	    mosi   <= pins_mosi;
+	    toggle <= pins_sclk;
+	 end else if((!di_write_mode && !di_read_mode) || di_term_addr != `TERM_N25Q_DATA) begin
 	    state      <= IDLE;
 	    rdy        <= 1;
 	    byte_count <= 0;
@@ -170,7 +174,6 @@ module N25Q
    end
 
    wire [4:0] sri_pos = 5'd31 - {byte_count[1:0], bitpos};
-   reg 	      miso_s;
    
    always @(posedge ifclk) begin
       miso_s <= miso;

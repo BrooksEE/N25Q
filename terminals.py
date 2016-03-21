@@ -25,8 +25,10 @@ di=DeviceInterface(
                          mode='write',
                          comment='Pins on N25Q',
                          subregs = [
-                             SubReg(name="wpb",   width=1, init=0),
-                             SubReg(name='holdb', width=1, init=1),
+                             SubReg(name="wpb",     width=1, init=0),
+                             SubReg(name='holdb',   width=1, init=1),
+                             SubReg(name='mosi',    width=1, init=0),
+                             SubReg(name='sclk',    width=1, init=0),
                          ],
                      ),
                 Register(name='csb1',
@@ -41,12 +43,19 @@ di=DeviceInterface(
                          mode='write',
                          comment='SPI mode',
                          subregs = [
-                             SubReg(name="cpol", width=1, init=0),
-                             SubReg(name='cpha', width=1, init=0),
+                             SubReg(name="cpol",     width=1, init=0),
+                             SubReg(name='cpha',     width=1, init=0),
+                             SubReg(name='bit_bang', width=1, init=0),
                          ],
                      ),
-                ]
-            ),
+                Register(name    = 'miso_s',
+                         type    = 'int',
+                         mode    = 'read',
+                         comment = 'MISO pin',
+                         width   = 1,
+                ),
+            ]
+        ),
 
         Terminal(
             name='N25Q_DATA',
