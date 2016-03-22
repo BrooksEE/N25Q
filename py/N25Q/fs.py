@@ -145,6 +145,17 @@ def get_file_from_info(flash, info):
     return flash.read(info["addr"], info["size"])
 
 def get_file(flash, filename):
-    return get_file_from_info(get_file_info(flash, filename))
+    info = get_file_info(flash, filename)
+    data = get_file_from_info(flash, info)
+    
+    if info["type"] == file_types["TYPE_OVERLAY_IMG"]:
+        import numpy
+        data = numpy.frombuffer(data, dtype=numpy.uint16).reshape(info["height"], info["width"])
+    elif info["type"] == file_types["TYPE_NATIVE_IMG"]:
+        import numpy
+        data = numpy.frombuffer(data[64:], dtype=numpy.uint8).reshape(info["height"], info["width"], 3)
+        
+    return data
+    
 
 

@@ -149,14 +149,22 @@ class N25Q:
         
 
     def read(self, addr, num_bytes):
-        c = bytearray([
-            self._READ,
-            (addr >> 23) & 0xFF,
-            (addr >> 16) & 0xFF,
-            (addr >>  8) & 0xFF,
-            (addr >>  0) & 0xFF,
-            ])
-        return self.cmd(c, num_bytes)
+        """Read in chunks of 256. Not sure why longer reads are failing, but they are."""
+        d = bytearray()
+        while num_bytes:
+            c = bytearray([
+                self._READ,
+                (addr >> 23) & 0xFF,
+                (addr >> 16) & 0xFF,
+                (addr >>  8) & 0xFF,
+                (addr >>  0) & 0xFF,
+                ])
+            r = self.cmd(c, min(num_bytes, 256))
+            l = len(r)
+            num_bytes -= l
+            addr += l
+            d += r
+        return d
 
     def write(self, addr, data):
         if(len(data) > 256):
