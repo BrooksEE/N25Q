@@ -135,10 +135,7 @@ module N25Q
 	 toggle     <= 0;
 	 mosi       <= 0;
       end else begin
-	 if(mode_bit_bang) begin
-	    mosi   <= pins_mosi;
-	    toggle <= pins_sclk;
-	 end else if((!di_write_mode && !di_read_mode) || di_term_addr != `TERM_N25Q_DATA) begin
+	 if((!di_write_mode && !di_read_mode) || di_term_addr != `TERM_N25Q_DATA) begin
 	    state      <= IDLE;
 	    rdy        <= 1;
 	    byte_count <= 0;

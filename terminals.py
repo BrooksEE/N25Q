@@ -38,22 +38,6 @@ di=DeviceInterface(
                          width=1,
                          init=1,
                      ),
-                Register(name='mode',
-                         type='int',
-                         mode='write',
-                         comment='SPI mode',
-                         subregs = [
-                             SubReg(name="cpol",     width=1, init=0),
-                             SubReg(name='cpha',     width=1, init=0),
-                             SubReg(name='bit_bang', width=1, init=0),
-                         ],
-                     ),
-                Register(name    = 'miso_s',
-                         type    = 'int',
-                         mode    = 'read',
-                         comment = 'MISO pin',
-                         width   = 1,
-                ),
             ]
         ),
 
