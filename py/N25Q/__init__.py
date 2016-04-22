@@ -66,8 +66,8 @@ class N25Q:
             cmd = cmd0
 
         #log.info("N25Q CMD: " + str(["0x%02x" % x for x in cmd]) + " read=" + str(num_read_bytes))
-        if self.dev.get(self.CTRL_TERM, "mode.bit_bang"):
-            return self.cmd_bit_bang(cmd, num_read_bytes)
+        #if self.dev.get(self.CTRL_TERM, "mode.bit_bang"):
+        #    return self.cmd_bit_bang(cmd, num_read_bytes)
 
         self.dev.set(self.CTRL_TERM, "csb1", 0)
 
