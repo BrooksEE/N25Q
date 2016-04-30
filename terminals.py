@@ -27,8 +27,6 @@ di=DeviceInterface(
                          subregs = [
                              SubReg(name="wpb",     width=1, init=0),
                              SubReg(name='holdb',   width=1, init=1),
-                             SubReg(name='mosi',    width=1, init=0),
-                             SubReg(name='sclk',    width=1, init=0),
                          ],
                      ),
                 Register(name='csb1',
@@ -38,6 +36,13 @@ di=DeviceInterface(
                          width=1,
                          init=1,
                      ),
+                Register(name='mode',
+                         type='int',
+                         mode='write',
+                         subregs = [
+                             SubReg(name='quad', width=1, init=0),
+                         ],
+                ),
             ]
         ),
 

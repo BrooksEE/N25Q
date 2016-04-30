@@ -21,7 +21,7 @@ module iverilog_tests;
 
 `ifdef TRACE      
       $dumpfile ( "iverilog_sim.vcd" );
-      $dumpvars ( 3, iverilog_tests );
+      $dumpvars ( 4, iverilog_tests );
       $display( "Running Simulation" );
 `endif
 
@@ -43,7 +43,7 @@ module iverilog_tests;
 
       write_cmd(8'h06, 0); // write enable
       write_cmd(8'hB7, 0); // enter 4 byte addr mode
-
+      
       write_cmd(8'h06, 0); // write enable
       args[0] = 8'h00; // first four bytes are the address
       args[1] = 8'h00;
@@ -59,27 +59,54 @@ module iverilog_tests;
 
       write_cmd(8'h06, 0); // write enable
       args[0] = 8'h00; // first four bytes are the address
-      args[1] = 8'h10;
+      args[1] = 8'h00;
       args[2] = 8'h00;
-      args[3] = 8'h00;
+      args[3] = 8'h10;
       args[4] = 8'h21;
       args[5] = 8'h22;
       args[6] = 8'h23;
       args[7] = 8'h24;
-      args[7] = 8'h25;
+      args[8] = 8'h25;
       write_cmd(8'h02, 9); // page program
       
       wait_for_write();
-      
-      read_cmd(8'h03, 5, 4106); // read
+
       args[0] = 8'h00; // first four bytes are the address
       args[1] = 8'h00;
       args[2] = 8'h00;
       args[3] = 8'h00;
-      for(j=0; j<10; j=j+1) begin
+      read_cmd(8'h03, 4, 32); // read
+      for(j=0; j<32; j=j+1) begin
 	 $display("%d: %x", j, rdata[j]);
       end
       for(j=4096; j<4106; j=j+1) begin
+	 $display("%d: %x", j, rdata[j]);
+      end
+      if(rdata[0] != 8'h01) passing = 0;
+      if(rdata[1] != 8'h02) passing = 0;
+      if(rdata[2] != 8'h03) passing = 0;
+      if(rdata[3] != 8'h04) passing = 0;
+      for(j=4; j<16; j=j+1) begin
+	 if(rdata[j] != 8'hff) passing = 0;
+      end
+      if(rdata[16] != 8'h21) passing = 0;
+      if(rdata[17] != 8'h22) passing = 0;
+      if(rdata[18] != 8'h23) passing = 0;
+      if(rdata[19] != 8'h24) passing = 0;
+      
+      if(passing)
+	$display("PASSED SINGLE BIT READ");
+
+      
+      // Test quad read mode
+      $display ( "Test QUAD Read" );
+      tb.fx3.set(`TERM_N25Q_CTRL, `N25Q_CTRL_mode, 1);
+      args[0] = 8'h00; // first four bytes are the address
+      args[1] = 8'h00;
+      args[2] = 8'h00;
+      args[3] = 8'h10;
+      read_cmd(8'h6B, 5, 100); // read one extra byte of dummy cycles
+      for(j=0; j<32; j=j+1) begin
 	 $display("%d: %x", j, rdata[j]);
       end
       
@@ -115,7 +142,7 @@ module iverilog_tests;
       
       
       $display("DONE");
-      $finish;
+      #100000 $finish;
    end
 
    task wait_for_write;
@@ -146,7 +173,7 @@ module iverilog_tests;
    task read_cmd;
       input [7:0] cmd;
       input [7:0] num_args;
-      input [7:0] num_read_bytes;
+      input [15:0] num_read_bytes;
       begin
 	 tb.fx3.setW(`TERM_N25Q_CTRL, `N25Q_CTRL_csb1, 1, 0);
 	 tb.fx3.rdwr_data_buf[0] = cmd;

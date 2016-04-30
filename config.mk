@@ -5,7 +5,7 @@ NITRO_PARTS_DIR = ../..
 # the SIM_LIBS variable.
 INC_PATHS = rtl_auto \
             $(NITRO_PARTS_DIR)/Micron/N25Q/sim/N25Q256A73E_VG12 \
-
+	    $(NITRO_PARTS_DIR)/lib/xilinx \
 
 # INC_FILES specifies a list of files that are included in the verilog
 # and are thus dependancies of the simulation.  It is not strictly
@@ -49,11 +49,11 @@ SIM_DEFS += TRACE
 # that are not excility listed in the SIM_FILES or SYN_FILES list
 # whereas INC_PATHS are searched for files that are `included in the
 # verilog itself.
-SIM_LIBS=unisims_ver secureip 
+SIM_LIBS=$(NITRO_PARTS_DIR)/../lib/xilinx secureip
 
 # SYN_FILES lists the files that will be synthesized
 SYN_FILES = \
-	rtl/N25Q.v \
+	rtl/N25Q_hs.v \
 	$(NITRO_PARTS_DIR)/lib/spi/spi_master.v \
 	rtl_auto/N25Q_CTRLTerminal.v \
         $(NITRO_PARTS_DIR)/lib/HostInterface/rtl/Fx3HostInterface.v \

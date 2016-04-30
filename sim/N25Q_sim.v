@@ -4,8 +4,8 @@ module N25Q_sim
    inout  mosi,
    input  csb,
    output miso,
-   input  wp,
-   input  holdb
+   inout  wp,
+   inout  holdb
    );
 
 
@@ -69,6 +69,7 @@ module N25Q_sim
    reg [9:0] bulk_erase_counter;
    integer   j;
    reg [15:0] nv_config;
+   reg 	      mode_quad;
    
    always @(posedge sclk or posedge csb or negedge resetb) begin
       if(!resetb) begin
@@ -88,12 +89,14 @@ module N25Q_sim
 	 nv_config <= 16'hFFFF;
 	 rcv_count <= 0;
 	 waddr <= 0;
+	 mode_quad <= 0;
       end else if(csb) begin
 	 rpos   <= 0;
 	 rstate <= STATE_RX_CMD;
 	 srin   <= 0;
 	 offset <= 0;
 	 next_rstate <= 0;
+	 mode_quad <= 0;
       end else begin
 	 srin <= next_srin;
 	 rpos <= rpos + 1;
@@ -146,6 +149,14 @@ module N25Q_sim
 		    next_rstate <= STATE_SUBSECTOR_ERASE;
 		 end
 		 
+		 8'h6B: begin
+		    $display("  QUAD READ CMD RECEIVED.");
+		    mode_quad <= 1;
+		    next_rstate <= STATE_READ;
+		    rcv_count <= (four_byte_addr_mode) ? 5 : 4; // add 8 dummy bits. TO DO: make number of dummy bits programmable.
+		    rstate <= STATE_RCV;
+		 end
+
 		 8'hB1: begin
 		    $display("  WRITE_NV_CONFIG CMD RECEIVED.");
 		    rstate <= STATE_RCV;
@@ -200,16 +211,31 @@ module N25Q_sim
 
 	 end else if(rstate == STATE_RCV) begin // if (rstate == STATE_RX_CMD)
 	    if(rpos == 7) begin
-	       sri_buf[rcv_count-1] <= next_srin;
+	       if(mode_quad) begin
+		  sri_buf[rcv_count-2] <= next_srin;
+	       end else begin
+		  sri_buf[rcv_count-1] <= next_srin;
+	       end
 	       rcv_count <= rcv_count - 1;
-	       if(rcv_count == 1) begin
-		  offset <= (four_byte_addr_mode) ? 5 : 4;
+	       if (rcv_count == 1) begin
 		  rstate <= STATE_SEND;
+	       end
+
+	       if(rcv_count == 1 || (rcv_count == 2 && mode_quad)) begin
+		  if(mode_quad) begin
+		     offset <= (four_byte_addr_mode) ? 6 : 5; // dummy bits. To Do: make programmable 
+		  end else begin
+		     offset <= (four_byte_addr_mode) ? 5 : 4;
+		  end
+
 		  if(next_rstate == STATE_RCV_NV_CONFIG) begin
 		     nv_config <= { next_srin, sri_buf[1] };
 		  end else if(next_rstate == STATE_READ) begin
-		     for(j=addr; j<1<<25; j=j+1) begin
-			sro_buf[j-addr] = mem_data[j];
+		     if((rcv_count == 1 && !mode_quad) || (rcv_count == 2 && mode_quad)) begin
+			$display("   FLASH READ FROM ADDR=0x%x", addr);
+			for(j=addr; j<1<<25; j=j+1) begin
+			   sro_buf[j-addr] = mem_data[j];
+			end
 		     end
 		  end else if(next_rstate == STATE_WRITE) begin
 		     waddr <= addr;
@@ -248,11 +274,20 @@ module N25Q_sim
 
 
    reg [2:0] spos;
+   wire [2:0] next_spos = (mode_quad && rstate == STATE_SEND && (spos==0 || spos == 4)) ? spos + 4 : spos + 1;
    reg [24:0] saddr;
    /* verilator lint_off WIDTH */
    wire [7:0] sro = sro_buf[saddr-offset];
    /* verilator lint_on WIDTH */
-   assign miso = sro[7-spos];
+   assign mosi  = (mode_quad && rstate == STATE_SEND) ? sro[4-spos] : 1'bz;
+   assign miso  = (mode_quad && rstate == STATE_SEND) ? sro[5-spos] : sro[7-spos];
+   assign wp    = (mode_quad && rstate == STATE_SEND) ? sro[6-spos] : 1'bz;
+   assign holdb = (mode_quad && rstate == STATE_SEND) ? sro[7-spos] : 1'bz;
+
+   wire       dq0 = spos[4-spos];
+   wire       dq1 = spos[5-spos];
+   wire       dq2 = spos[6-spos];
+   wire       dq3 = spos[7-spos];
    
    
    always @(negedge sclk or posedge csb or negedge resetb) begin
@@ -263,10 +298,10 @@ module N25Q_sim
 	 spos <= 0;
 	 saddr <= 0;
       end else begin
-	 spos <= spos + 1;
-	 if(spos == 7) begin
+	 if(next_spos == 0) begin
 	    saddr <= saddr + 1;
 	 end
+	 spos <= next_spos;
       end
    end
 

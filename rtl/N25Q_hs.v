@@ -1,3 +1,6 @@
+// Author: Lane Brooks
+// Date: 2/12/2016
+// Desc: This N25Q controller runs at a clock rate.
 `include "terminals_defs.v"
 module N25Q
   (
@@ -16,11 +19,11 @@ module N25Q
    input [31:0]      di_reg_datai,
    output reg 	     di_read_rdy,
    output reg [31:0] di_reg_datao,
-   output reg	     di_write_rdy,
+   output reg 	     di_write_rdy,
    output reg [15:0] di_transfer_status,
    output reg 	     di_N25Q_en,
    
-   output 	     wp, //When in QIO-SPI mode or in extended SPI mode using
+   inout 	     wp, //When in QIO-SPI mode or in extended SPI mode using
 		//QUAD FAST READ commands, the signal functions as
 		//DQ2, providing input/output. All data input drivers
 		//are always enabled except when used as an
@@ -28,7 +31,7 @@ module N25Q
 		//signals normally (to avoid unnecessary switching
 		//current) and float the signals before the memory
 		//device drives data on them.
-   output reg	     mosi, //Transfers data serially into the device. It receives
+   output 	     mosi, //Transfers data serially into the device. It receives
 		//command codes, addresses, and the data to be
 		//programmed. Values are latched on the rising edge of
 		//the clock. DQ0 is used for input /output during the
@@ -56,7 +59,7 @@ module N25Q
 		// LOW enables the device, placing it in the active
 		// power mode. After power-up, a falling edge on S# is
 		// required prior to the start of any command.
-   output 	     holdb,// When in quad SPI mode or in extended SPI mode using
+   inout 	     holdb,// When in quad SPI mode or in extended SPI mode using
 		// quad FAST READ commands, the signal functions as
 		// DQ3, providing input/output. HOLD# is disabled and
 		// RESET# is disabled if the device is selected.
@@ -118,6 +121,7 @@ module N25Q
 
    reg [31:0] sro;
    reg [2:0] bitpos;
+   wire [2:0] next_bitpos = (mode_quad && di_read_mode) ? bitpos + 4 : bitpos + 1;
    always @(posedge ifclk or negedge resetb) begin
       if(!resetb) begin
 	 rdy        <= 0;
@@ -142,8 +146,8 @@ module N25Q
 	       rdy    <= 0;
 	       bitpos <= 0;
 	    end else if(state == READ_WRITE) begin
-	       bitpos <= bitpos + 1;
-	       if(bitpos == 7) begin
+	       bitpos <= next_bitpos;
+	       if(next_bitpos == 0) begin
 		  byte_count <= next_byte_count;
 		  /* verilator lint_off WIDTH */
 		  if(next_byte_count >= di_len || next_byte_count[1:0] == 0) begin
@@ -158,42 +162,52 @@ module N25Q
    end
 
    reg sclk_en;
+   reg [3:0] dq_sn;
 
    wire clk_en = state == READ_WRITE;
    wire [4:0] sri_pos = 5'd31 - {byte_count[1:0], bitpos};
    reg [4:0]  sri_pos_s;
-   reg 	      miso_sp, miso_sn;
+   wire       miso_sn = dq_sn[1];
    reg 	      sclk_en_s;
    
    always @(posedge ifclk) begin
       sclk_en_s <= clk_en;
       sri_pos_s <= sri_pos;
-      miso_sp   <= miso;
       if(sclk_en_s) begin
-	 sri[sri_pos_s] <= miso_sn;
+	 if(mode_quad) begin
+	    sri[sri_pos_s-0] <= dq_sn[3];
+	    sri[sri_pos_s-1] <= dq_sn[2];
+	    sri[sri_pos_s-2] <= dq_sn[1];
+	    sri[sri_pos_s-3] <= dq_sn[0];
+	 end else begin
+	    sri[sri_pos_s] <= dq_sn[1];
+	 end
       end
    end
-   
+
    reg [4:0] wpos;
    wire [4:0] next_wpos = wpos - 1;
+   reg 	      mosi_reg;
    always @(negedge ifclk) begin
-      miso_sn <= miso;
+      dq_sn <= { holdb, wp, miso, mosi };
       sclk_en <= clk_en;
       if(!di_write_mode) begin
 	 wpos <= 0;
       end else if(clk_en) begin
 	 wpos <= next_wpos;
       end
-      mosi <= sro[next_wpos];
+      mosi_reg <= sro[next_wpos];
    end
 
    
    //assign sclk = sclk_en & ifclk;
-   ODDR2 sclko(.Q(sclk), .C0(ifclk), .C1(~ifclk), .CE(sclk_en), .D0(1), .D1(0), .R(0), .S(0));
+   ODDR2 sclko(.Q(sclk), .C0(ifclk), .C1(~ifclk), .CE(sclk_en), .D0(1'b1), .D1(1'b0), .R(1'b0), .S(1'b0));
 
    assign csb   = csb1;
-   assign wp    = pins_wpb;
-   assign holdb = pins_holdb;
+   wire hiz = mode_quad && di_read_mode;
+   assign wp    = (hiz) ? 1'bz : pins_wpb;
+   assign holdb = (hiz) ? 1'bz : pins_holdb;
+   assign mosi  = (hiz) ? 1'bz : mosi_reg;
 endmodule
 
 

@@ -117,6 +117,8 @@ module tb
       );
    
    wire flash_wp,flash_mosi,flash_sclk,flash_csb,flash_holdb,flash_miso;
+   pullup(flash_holdb);
+   pulldown(flash_wp);
    N25Q N25Q
      (.ifclk(ifclk),
       .resetb(resetb),

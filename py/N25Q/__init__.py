@@ -16,6 +16,7 @@ class N25Q:
     _READ_NV_CONFIG    = (0xB5, 2)
     _WRITE_NV_CONFIG   = 0xB1
     _READ              = 0x03
+    _READ_QUAD         = 0x6B
     _WRITE             = 0x02
     _BULK_ERASE        = 0xC7
     _ENTER_4_BYTE_ADDRESS_MODE = 0xB7
@@ -148,22 +149,44 @@ class N25Q:
             self.dev.set(self.CTRL_TERM, "pins.wpb", 0)
         
 
-    def read(self, addr, num_bytes):
+    def read(self, addr, num_bytes, quad_mode=True):
         """Read in chunks of 256. Not sure why longer reads are failing, but they are."""
         d = bytearray()
-        while num_bytes:
-            c = bytearray([
-                self._READ,
-                (addr >> 23) & 0xFF,
-                (addr >> 16) & 0xFF,
-                (addr >>  8) & 0xFF,
-                (addr >>  0) & 0xFF,
+        try:
+            if quad_mode:
+                self.dev.set(self.CTRL_TERM, "mode.quad", 1)
+
+            if False: # reading entire image is broken
+                c = bytearray([
+                    self._READ_QUAD if quad_mode else self._READ,
+                    (addr >> 23) & 0xFF,
+                    (addr >> 16) & 0xFF,
+                    (addr >>  8) & 0xFF,
+                    (addr >>  0) & 0xFF,
                 ])
-            r = self.cmd(c, min(num_bytes, 256))
-            l = len(r)
-            num_bytes -= l
-            addr += l
-            d += r
+                if quad_mode:
+                    c.append(0)
+                d = self.cmd(c, num_bytes)
+            else:
+                while num_bytes:
+                    c = bytearray([
+                        self._READ_QUAD if quad_mode else self._READ,
+                        (addr >> 23) & 0xFF,
+                        (addr >> 16) & 0xFF,
+                        (addr >>  8) & 0xFF,
+                        (addr >>  0) & 0xFF,
+                        ])
+                    if quad_mode:
+                        c.append(0)
+                    r = self.cmd(c, min(num_bytes, 1024))
+                    l = len(r)
+                    num_bytes -= l
+                    addr += l
+                    d += r
+
+        finally:
+            self.dev.set(self.CTRL_TERM, "mode.quad", 0)
+            
         return d
 
     def write(self, addr, data):
@@ -188,8 +211,18 @@ class N25Q:
     def bulk_erase(self):
         self.write_enable()
         self.cmd(self._BULK_ERASE)
+        time.sleep(0.1)
+        t0=time.time()
+        spinner = ["-",r'\\'[0], "|", r'/', "-", r'\\'[0], "|", r'/']
         while self.get_status()["write_in_progress"]:
-            pass
+            t1 = int(time.time()-t0)
+            m = t1/60
+            s = t1 - m * 60
+            sys.stdout.write("\rBulk Erasing:   %s    %02d:%02d" % (spinner[0], m,s))
+            sys.stdout.flush()
+            spinner.append(spinner.pop(0))
+            time.sleep(0.1)
+        sys.stdout.write("\n")
         self.write_enable(False)
 
     def subsector_erase(self, addr):
@@ -215,20 +248,36 @@ class N25Q:
         self.cmd(self._ENTER_4_BYTE_ADDRESS_MODE)
         self.write_enable(False)
 
-    def write_image(self, image, addr=0, verify_while_writing=True):
+    def write_image(self, image, addr=0, verify_while_writing=False, bulk_erase=True):
 #        image = image[:4096*1]
-        log.info(" WRITING IMAGE TO 0x%x LEN=%dMB" % (addr, len(image)/1e6))
         addr0 = addr
         num_subsectors = len(image)/4096
-        
-        log.info("  NUM_SUBSECTORS=%d" % num_subsectors)
+
         N = 50
         sys.stdout.write(" ")
         t0 = time.time()
+
+        try: # the flash seems to need some opporations to get it functioning.
+            self.get_id()
+            self.subsector_erase(addr)
+        except:
+            pass
+
+        x = self.read(addr, len(image))
+        erase_necessary = not(x == bytearray("\xff" * len(image)))
+        log.info("Erase Necessary: " + str(erase_necessary))
+        
+        if bulk_erase and erase_necessary:
+            log.info("Bulk Erasing Flash")
+            self.bulk_erase()
+        
+        log.info(" WRITING IMAGE TO 0x%x LEN=%dMB" % (addr, len(image)/1e6))
+        log.info("  NUM_SUBSECTORS=%d" % num_subsectors)
         for subsector_idx in range(num_subsectors):
             iaddr = subsector_idx * 4096
             def write_subsector(addr):
-                self.subsector_erase(addr)
+                if not(bulk_erase) and erase_necessary:
+                    self.subsector_erase(addr)
                 for page in range(16):
                     self.write(addr, image[iaddr+(page*256):iaddr+(page+1)*256])
                     if verify_while_writing:
@@ -260,34 +309,43 @@ class N25Q:
             sys.stdout.write("\r%5d/%5d |" % (subsector_idx+1,num_subsectors) + ("=" * n0) + (" " * (N-n0)) + "| %02d:%02d" % (m,s))
             sys.stdout.flush()
 
+        sys.stdout.write("\n")
         self.verify_image(image, addr0)
             
-    def verify_image(self, image, addr=0):
-        mismatch = 0
-        N = 50
-        pages = len(image)/256
+    def verify_image(self, image, addr=0, quad_mode=True):
         t0 = time.time()
         log.info("VERIFYING IMAGE")
-        for page in range(pages):
-            addr0 = page * 256 + addr
-            iaddr = page * 256
-            r0 = self.read(addr0, 256)
-
-            if(r0 != image[iaddr:iaddr+256]):
-                log.error("Page mismatch at addr=" + hex(addr0))
-                print "Read:", str(r0).encode("hex")
-                print "Actu:", str(image[iaddr:iaddr+256]).encode("hex")
-                mismatch += 1
-
-            if(page % 16 == 0): # update page count printing occasionally 
-                n0 = page * N / pages
-                t1 = int(time.time()-t0)
-                m = t1/60
-                s = t1 - m * 60
-                sys.stdout.write("\r%5d/%5d |" % (page/16,pages/16) + ("." * n0) + (" " * (N-n0)) + "| %02d:%02d" % (m,s))
-                sys.stdout.flush()
-                
-        if mismatch:
-            raise Exception(str(mismatch), " page mismatch(s) found")
+        if True:
+            rimg = self.read(addr, len(image), quad_mode=quad_mode)
+            t1 = time.time()
+            if(rimg == image):
+                log.info("Verification Passed")
+            else:
+                raise Exception("Verification Failed")
         else:
-            log.info("Verification Passed")
+            mismatch = 0
+            N = 50
+            pages = len(image)/256
+            for page in range(pages):
+                addr0 = page * 256 + addr
+                iaddr = page * 256
+                r0 = self.read(addr0, 256, quad_mode=quad_mode)
+    
+                if(r0 != image[iaddr:iaddr+256]):
+                    log.error("Page mismatch at addr=" + hex(addr0))
+                    print "Read:", str(r0).encode("hex")
+                    print "Actu:", str(image[iaddr:iaddr+256]).encode("hex")
+                    mismatch += 1
+    
+                if(page % 16 == 0): # update page count printing occasionally 
+                    n0 = page * N / pages
+                    t1 = int(time.time()-t0)
+                    m = t1/60
+                    s = t1 - m * 60
+                    sys.stdout.write("\r%5d/%5d |" % (page/16,pages/16) + ("." * n0) + (" " * (N-n0)) + "| %02d:%02d" % (m,s))
+                    sys.stdout.flush()
+                    
+            if mismatch:
+                raise Exception(str(mismatch), " page mismatch(s) found")
+            else:
+                log.info("Verification Passed")
