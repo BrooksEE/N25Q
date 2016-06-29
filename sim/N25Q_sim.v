@@ -1,4 +1,6 @@
 module N25Q_sim
+  #(parameter NUM_ADDR_BITS=25,
+    parameter FILENAME="../py/flash.image")
   (
    input  sclk,
    inout  mosi,
@@ -21,6 +23,7 @@ module N25Q_sim
    reg [4:0]  status_dont_care;
    reg 	      write_enable_latch;
    reg 	      write_in_progress;
+   reg 	     four_byte_addr_mode;
    
    wire [7:0] status = { write_enable, status_dont_care, write_enable_latch, write_in_progress };
 
@@ -29,25 +32,27 @@ module N25Q_sim
       resetb <= 1;
    end
 
-   reg [7:0] sro_buf[0:1<<25];
+   reg [7:0] sro_buf[0:(1<<NUM_ADDR_BITS)-1];
    reg [7:0] sri_buf[0:256];
-   reg [7:0] mem_data[0:1<<25];
+   reg [7:0] mem_data[0:(1<<NUM_ADDR_BITS)-1];
    reg [8:0] rcv_count;
    reg [3:0] offset;
-   wire [31:0] addr = {sri_buf[3], sri_buf[2], sri_buf[1], next_srin };
+   wire [31:0] addr = (four_byte_addr_mode) ? 
+	       {sri_buf[3], sri_buf[2], sri_buf[1], next_srin } :
+	       {8'b0, sri_buf[2], sri_buf[1], next_srin };	       
    reg [31:0] waddr;
 
    integer    f;
    initial begin
-      f=$fopen("../py/flash.image" ,"rb");
+      f=$fopen(FILENAME ,"rb");
       if(f==0) begin
 	 $display("Could not open N25Q_DATA_FILE for read");
       end
-      for(j=0; j<1<<25; j=j+1) begin
+      for(j=0; j<1<<NUM_ADDR_BITS; j=j+1) begin
 	 mem_data[j] = 255;
       end
       j=0;
-      while(!$feof(f) && j<1<<25) begin
+      while(!$feof(f) && j<1<<NUM_ADDR_BITS) begin
 	 mem_data[j] = $fgetc(f);
 	 j=j+1;
       end
@@ -64,7 +69,6 @@ module N25Q_sim
 //    _WRITE_LOCK        = 0xE5
 //    _READ_FLAG_STATUS  = (0x70, 1)
 //    _CLEAR_FLAG_STATUS = 0x50
-   reg 	     four_byte_addr_mode;
    reg 	     bulk_erase_in_progress, event_bulk_erase;
    reg [9:0] bulk_erase_counter;
    integer   j;
@@ -193,7 +197,7 @@ module N25Q_sim
 		    offset <= 1;
 		    sro_buf[0] <= 8'h20;
 		    sro_buf[1] <= 8'hBA;
- 		    sro_buf[2] <= 8'h19;
+ 		    sro_buf[2] <= NUM_ADDR_BITS;
 		    for(j=3; j<20; j=j+1) begin
 		       sro_buf[j] <= 8'h00;
 		    end
@@ -233,7 +237,7 @@ module N25Q_sim
 		  end else if(next_rstate == STATE_READ) begin
 		     if((rcv_count == 1 && !mode_quad) || (rcv_count == 2 && mode_quad)) begin
 			$display("   FLASH READ FROM ADDR=0x%x", addr);
-			for(j=addr; j<1<<25; j=j+1) begin
+			for(j=addr; j<1<<NUM_ADDR_BITS; j=j+1) begin
 			   sro_buf[j-addr] = mem_data[j];
 			end
 		     end
@@ -260,7 +264,7 @@ module N25Q_sim
 	 end else if(bulk_erase_counter > 0) begin
 	    bulk_erase_counter <= bulk_erase_counter - 1;
 	    if(bulk_erase_counter == 1) begin
-	       for(j=0; j<1<<25; j=j+1) begin
+	       for(j=0; j<1<<NUM_ADDR_BITS; j=j+1) begin
 		  mem_data[j] = 8'hff;
 	       end
 	    end 

@@ -2,7 +2,6 @@ import logging, sys, time
 
 log = logging.getLogger("N25Q FLASH MEM")
 
-
 class N25Q:
     _WRITE_ENABLE      = 0x06
     _WRITE_DISABLE     = 0x04
@@ -21,11 +20,15 @@ class N25Q:
     _BULK_ERASE        = 0xC7
     _ENTER_4_BYTE_ADDRESS_MODE = 0xB7
     _SUBSECTOR_ERASE   = 0x20
-    def __init__(self, dev, CTRL_TERM="N25Q_CTRL", DATA_TERM="N25Q_DATA"):
+    def __init__(self, dev, CTRL_TERM="N25Q_CTRL", DATA_TERM="N25Q_DATA", quad_mode_read_ok=True):
         self.dev = dev
         self.CTRL_TERM = CTRL_TERM
         self.DATA_TERM = DATA_TERM
         self.initialized = False
+        self.quad_mode_read_ok = quad_mode_read_ok
+
+    def disable_quad_read(self):
+        self.quad_ok = False
         
     def init_system(self):
         self.dev.set(self.CTRL_TERM, "pins.holdb", 1)
@@ -40,14 +43,16 @@ class N25Q:
             self.initialized = False
             raise Exception("Error Reading Flash Memory ID")
         self.size = 2**id[2]
+        self.num_addr_bits = id[2]
         log.info("FLASH MEMORY SIZE CODE: %d" % self.size)
 
-        # set to 4 byte addressing mode
-        x = self.get_nv_config()
-        x[0] = x[0] & 0xFE
-        x[1] = 0xFF
-        self.set_nv_config(x)
-        self.enter_4_byte_address_mode()
+        # set to 4 byte addressing mode if num_addr_bits is greater than 24
+        if self.num_addr_bits > 24:
+            x = self.get_nv_config()
+            x[0] = x[0] & 0xFE
+            x[1] = 0xFF
+            self.set_nv_config(x)
+            self.enter_4_byte_address_mode()
         self.initialized = True
         return id
     
@@ -151,6 +156,7 @@ class N25Q:
 
     def read(self, addr, num_bytes, quad_mode=True):
         """Read in chunks of 256. Not sure why longer reads are failing, but they are."""
+        quad_mode = self.quad_mode_read_ok and quad_mode # make sure quad_mode is OK
         d = bytearray()
         try:
             if quad_mode:
@@ -159,11 +165,13 @@ class N25Q:
             if False: # reading entire image is broken
                 c = bytearray([
                     self._READ_QUAD if quad_mode else self._READ,
-                    (addr >> 23) & 0xFF,
-                    (addr >> 16) & 0xFF,
-                    (addr >>  8) & 0xFF,
-                    (addr >>  0) & 0xFF,
                 ])
+                if self.num_addr_bits > 24:
+                    c.append((addr >> 23) & 0xFF)
+                c.append((addr >> 16) & 0xFF)
+                c.append((addr >>  8) & 0xFF)
+                c.append((addr >>  0) & 0xFF)
+
                 if quad_mode:
                     c.append(0)
                 d = self.cmd(c, num_bytes)
@@ -171,14 +179,15 @@ class N25Q:
                 while num_bytes:
                     c = bytearray([
                         self._READ_QUAD if quad_mode else self._READ,
-                        (addr >> 23) & 0xFF,
-                        (addr >> 16) & 0xFF,
-                        (addr >>  8) & 0xFF,
-                        (addr >>  0) & 0xFF,
                         ])
+                    if self.num_addr_bits > 24:
+                        c.append((addr >> 23) & 0xFF)
+                    c.append((addr >> 16) & 0xFF)
+                    c.append((addr >>  8) & 0xFF)
+                    c.append((addr >>  0) & 0xFF)
                     if quad_mode:
                         c.append(0)
-                    r = self.cmd(c, min(num_bytes, 1024))
+                    r = self.cmd(c, min(num_bytes, 512)) #1024))
                     l = len(r)
                     num_bytes -= l
                     addr += l
@@ -189,25 +198,34 @@ class N25Q:
             
         return d
 
-    def write(self, addr, data):
+    def write_page(self, addr, data):
+        """Writes 'data' to 'addr'. Max length of data is 256 bytes. Assumes
+        flash is already erased and ready to program.
+        """
         if(len(data) > 256):
             raise Exception("Can only write pages of 256 bytes at a time")
         log.debug(" WRITE PAGE: 0x%x" % addr)
         self.write_enable()
-#        time.sleep(0.01)
-        c = bytearray(
-            [self._WRITE,
-             (addr >> 23) & 0xFF,
-             (addr >> 16) & 0xFF,
-             (addr >>  8) & 0xFF,
-             (addr >>  0) & 0xFF,
-            ]) + bytearray(data)
+        c = bytearray([self._WRITE])
+        if self.num_addr_bits > 24:
+            c.append((addr >> 23) & 0xFF)
+        c.append((addr >> 16) & 0xFF)
+        c.append((addr >>  8) & 0xFF)
+        c.append((addr >>  0) & 0xFF)
+        c += bytearray(data)
         self.cmd(c)
-#        time.sleep(0.01)
         while self.get_status()["write_in_progress"]:
             pass
         self.write_enable(False)
 
+    def write(self, addr, data):
+        """Writes 'data' to 'addr'. Assumes flash is already erased and ready
+        to program."""
+        while len(data) > 0:
+            self.write_page(addr, data[:256])
+            addr += 256
+            data = data[256:]
+        
     def bulk_erase(self):
         self.write_enable()
         self.cmd(self._BULK_ERASE)
@@ -230,14 +248,13 @@ class N25Q:
         log.debug(" SUBSECTOR ERASE: 0x%x" % addr)
         self.write_enable()
 #        time.sleep(0.01)
-        self.cmd(bytearray([
-            self._SUBSECTOR_ERASE,
-             (addr >> 23) & 0xFF,
-             (addr >> 16) & 0xFF,
-             (addr >>  8) & 0xFF,
-             (addr >>  0) & 0xFF,
-            ]))
-        
+        c = bytearray([       self._SUBSECTOR_ERASE, ])
+        if self.num_addr_bits > 24:
+            c.append((addr >> 23) & 0xFF)
+        c.append((addr >> 16) & 0xFF)
+        c.append((addr >>  8) & 0xFF)
+        c.append((addr >>  0) & 0xFF)
+        self.cmd(c)
 #        time.sleep(0.01)
         while self.get_status()["write_in_progress"]:
             pass
@@ -248,22 +265,26 @@ class N25Q:
         self.cmd(self._ENTER_4_BYTE_ADDRESS_MODE)
         self.write_enable(False)
 
-    def write_image(self, image, addr=0, verify_while_writing=False, bulk_erase=True):
+    def write_image(self, image, addr=0, verify_while_writing=False, bulk_erase=True, quad_mode=True):
 #        image = image[:4096*1]
         addr0 = addr
-        num_subsectors = len(image)/4096
+        num_subsectors = (len(image)+4095)/4096
 
+        if str(type(image)) == "<type 'numpy.ndarray'>":
+            image = image.tobytes()
+        if type(image) is str:
+            image = bytearray(image)
+        
         N = 50
         sys.stdout.write(" ")
         t0 = time.time()
 
         try: # the flash seems to need some opporations to get it functioning.
             self.get_id()
-            self.subsector_erase(addr)
         except:
             pass
 
-        x = self.read(addr, len(image))
+        x = self.read(addr, len(image), quad_mode=quad_mode)
         erase_necessary = not(x == bytearray("\xff" * len(image)))
         log.info("Erase Necessary: " + str(erase_necessary))
         
@@ -279,11 +300,14 @@ class N25Q:
                 if not(bulk_erase) and erase_necessary:
                     self.subsector_erase(addr)
                 for page in range(16):
-                    self.write(addr, image[iaddr+(page*256):iaddr+(page+1)*256])
-                    if verify_while_writing:
-                        r = self.read(addr, 256)
-                        if str(r) != str(image[iaddr+(page*256):iaddr+(page+1)*256]):
-                            raise Exception("Read verify failed: page=" + str(page))
+                    p = image[iaddr+(page*256):iaddr+(page+1)*256]
+                    #print hex(iaddr+(page*256)), str(p[:8]).encode("hex")
+                    if len(p) > 0:
+                        self.write(addr, p)
+                        if verify_while_writing:
+                            r = self.read(addr, len(p), quad_mode=quad_mode)
+                            if str(r) != str(p):
+                                raise Exception("Read verify failed: page=" + str(page))
                     addr += 256
                 return addr
             retry = 0
@@ -310,7 +334,7 @@ class N25Q:
             sys.stdout.flush()
 
         sys.stdout.write("\n")
-        self.verify_image(image, addr0)
+        self.verify_image(image, addr0, quad_mode=quad_mode)
             
     def verify_image(self, image, addr=0, quad_mode=True):
         t0 = time.time()
@@ -321,7 +345,11 @@ class N25Q:
             if(rimg == image):
                 log.info("Verification Passed")
             else:
-                raise Exception("Verification Failed")
+                for idx, (x,y) in enumerate(zip(image, rimg)):
+                    if x != y:
+                        print "Mismatch: 0x%x  0x%02x/0x%02x" % (idx+addr, x, y)
+                    #break
+                raise Exception("Verification Failed at Location: 0x%x" % idx)
         else:
             mismatch = 0
             N = 50
