@@ -1,0 +1,6 @@
+Import('env')
+xml=env.Diconv( 'N25Q.xml' ,'terminals.py')
+env.Xml(xml)
+
+env.Py('Micron/N25Q',Glob('py/N25Q/*'))
+
