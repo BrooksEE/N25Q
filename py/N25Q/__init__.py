@@ -265,7 +265,12 @@ class N25Q:
         self.cmd(self._ENTER_4_BYTE_ADDRESS_MODE)
         self.write_enable(False)
 
-    def write_image(self, image, addr=0, verify_while_writing=False, bulk_erase=True, quad_mode=True):
+    def write_image(self, image, addr=0, verify_while_writing=False, bulk_erase=True, quad_mode=True, ui_callback=None):
+        """
+            ui_callback(cur,total,seconds)
+                Called from write_image with current progress and total size and elapsed seconds.
+                If not specified data goes to stdout.
+        """
 #        image = image[:4096*1]
         addr0 = addr
         num_subsectors = (len(image)+4095)/4096
@@ -275,9 +280,18 @@ class N25Q:
         if type(image) is str:
             image = bytearray(image)
         
-        N = 50
-        sys.stdout.write(" ")
         t0 = time.time()
+        
+        if ui_callback is None:
+            sys.stdout.write(" ")
+            def default_callback(c,t,sec):
+                m, s = divmod ( sec, 60 )
+                N = 50
+                n0 = c * N / t
+                sys.stdout.write("\r%5d/%5d |" % (c+1,t) + ("=" * n0) + (" " * (N-n0)) + "| %02d:%02d" % (m,s))
+                sys.stdout.flush()
+            ui_callback=default_callback
+   
 
         try: # the flash seems to need some opporations to get it functioning.
             self.get_id()
@@ -326,12 +340,8 @@ class N25Q:
                     if retry > 10:
                         raise
 #            addr = write_subsector(addr)
-            n0 = subsector_idx * N / num_subsectors
             t1 = int(time.time()-t0)
-            m = t1/60
-            s = t1 - m * 60
-            sys.stdout.write("\r%5d/%5d |" % (subsector_idx+1,num_subsectors) + ("=" * n0) + (" " * (N-n0)) + "| %02d:%02d" % (m,s))
-            sys.stdout.flush()
+            ui_callback ( subsector_idx, num_subsectors, t1 )
 
         sys.stdout.write("\n")
         self.verify_image(image, addr0, quad_mode=quad_mode)
