@@ -343,7 +343,10 @@ class N25Q:
             t1 = int(time.time()-t0)
             ui_callback ( subsector_idx, num_subsectors, t1 )
 
-        sys.stdout.write("\n")
+        try:
+            sys.stdout.write("\n")
+        except:
+            pass # because in ui mode stdout might not be open
         self.verify_image(image, addr0, quad_mode=quad_mode)
             
     def verify_image(self, image, addr=0, quad_mode=True):
