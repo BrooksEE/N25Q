@@ -3,3 +3,9 @@
 *.o
 *.lst
 N25Q.xml
+rtl_auto
+sim/N25Q256A73E_VG12
+sim/*so
+obj_dir
+*vmf
+*vvp
