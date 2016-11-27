@@ -44,7 +44,7 @@ class N25Q:
             raise Exception("Error Reading Flash Memory ID")
         self.size = 2**id[2]
         self.num_addr_bits = id[2]
-        log.info("FLASH MEMORY SIZE CODE: %d" % self.size)
+        log.info("FLASH MEMORY SIZE CODE: %d MB" % (self.size/1e6))
 
         # set to 4 byte addressing mode if num_addr_bits is greater than 24
         if self.num_addr_bits > 24:
@@ -192,7 +192,7 @@ class N25Q:
                     num_bytes -= l
                     addr += l
                     d += r
-
+                    
         finally:
             self.dev.set(self.CTRL_TERM, "mode.quad", 0)
             
