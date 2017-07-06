@@ -222,14 +222,18 @@ class N25Q:
         """Writes 'data' to 'addr'. Assumes flash is already erased and ready
         to program."""
         while len(data) > 0:
-            self.write_page(addr, data[:256])
+            try:
+                self.write_page(addr, data[:256])
+            except:
+                time.sleep(0.5)
+                self.write_page(addr, data[:256])
             addr += 256
             data = data[256:]
         
     def bulk_erase(self):
         self.write_enable()
         self.cmd(self._BULK_ERASE)
-        time.sleep(0.1)
+        time.sleep(0.2)
         t0=time.time()
         spinner = ["-",r'\\'[0], "|", r'/', "-", r'\\'[0], "|", r'/']
         while self.get_status()["write_in_progress"]:
@@ -298,12 +302,14 @@ class N25Q:
         except:
             pass
 
-        x = self.read(addr, len(image), quad_mode=quad_mode)
-        erase_necessary = not(x == bytearray("\xff" * len(image)))
+        #x = self.read(addr, len(image), quad_mode=quad_mode)
+        #erase_necessary = not(x == bytearray("\xff" * len(image)))
+        erase_necessary= True#False
         log.info("Erase Necessary: " + str(erase_necessary))
         
-        if bulk_erase and erase_necessary:
+        if 1:# bulk_erase and erase_necessary:
             log.info("Bulk Erasing Flash")
+            time.sleep(0.2)
             self.bulk_erase()
         
         log.info(" WRITING IMAGE TO 0x%x LEN=%dMB" % (addr, len(image)/1e6))
