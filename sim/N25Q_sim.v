@@ -44,17 +44,18 @@ module N25Q_sim
 
    integer    f;
    initial begin
+      for(j=0; j < (1<<NUM_ADDR_BITS); j=j+1) begin
+	 mem_data[j] = 255;
+      end
       f=$fopen(FILENAME ,"rb");
       if(f==0) begin
 	 $display("Could not open N25Q_DATA_FILE for read");
-      end
-      for(j=0; j<1<<NUM_ADDR_BITS; j=j+1) begin
-	 mem_data[j] = 255;
-      end
-      j=0;
-      while(!$feof(f) && j<1<<NUM_ADDR_BITS) begin
-	 mem_data[j] = $fgetc(f);
-	 j=j+1;
+      end else begin
+         j=0;
+         while(!$feof(f) && j<1<<NUM_ADDR_BITS) begin
+	    mem_data[j] = $fgetc(f);
+	    j=j+1;
+         end
       end
    end
    wire [7:0] mem_data0 = mem_data[0];
