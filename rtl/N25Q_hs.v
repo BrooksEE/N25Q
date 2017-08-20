@@ -204,7 +204,10 @@ module N25Q
    ODDR2 sclko(.Q(sclk), .C0(ifclk), .C1(~ifclk), .CE(sclk_en), .D0(1'b1), .D1(1'b0), .R(1'b0), .S(1'b0));
 
    assign csb   = csb1;
-   wire hiz = mode_quad && di_read_mode;
+   reg hiz;
+   always @(posedge ifclk) begin
+      hiz <= mode_quad && di_read_mode && di_term_addr == `TERM_N25Q_DATA;
+   end
    assign wp    = (hiz) ? 1'bz : pins_wpb;
    assign holdb = (hiz) ? 1'bz : pins_holdb;
    assign mosi  = (hiz) ? 1'bz : mosi_reg;

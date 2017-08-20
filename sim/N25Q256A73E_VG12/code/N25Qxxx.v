@@ -4341,7 +4341,9 @@ module UtilFunctions;
     input [40*8:1] memory_file;
 
     begin
-    
+
+       $display("** load_memory_file %s", memory_file);
+       
         for (i=0; i<=memDim-1; i=i+1) 
             mem.memory[i] = data_NP;
         
