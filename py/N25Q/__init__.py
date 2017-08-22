@@ -38,7 +38,7 @@ class N25Q:
         for idx, x in enumerate(id):
             log.debug("  %02d: 0x%02x" % (idx, x))
         if((id[0] != 0x20) or (id[1] != 0xBA)):
-            log.error("Error Reading Flash Memory ID: 0x%02x 0x%02x" % (id[0], id[1]))
+            log.error("Error Reading Flash Memory ID: 0x%02x 0x%02x. Should be 0x10 0xba" % (id[0], id[1]))
             log.error("  ID=" + " ".join("%02x" % h for h in id))
             self.initialized = False
             raise Exception("Error Reading Flash Memory ID")

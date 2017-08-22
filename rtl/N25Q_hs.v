@@ -199,7 +199,8 @@ module N25Q
       mosi_reg <= sro[next_wpos];
    end
 
-   
+   // synthesis attribute IOB of dq_sn is "TRUE";
+
    //assign sclk = sclk_en & ifclk;
    ODDR2 sclko(.Q(sclk), .C0(ifclk), .C1(~ifclk), .CE(sclk_en), .D0(1'b1), .D1(1'b0), .R(1'b0), .S(1'b0));
 
