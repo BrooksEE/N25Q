@@ -14,6 +14,8 @@ class N25Q:
     _READ_ID           = (0x9e, 20)
     _READ_NV_CONFIG    = (0xB5, 2)
     _WRITE_NV_CONFIG   = 0xB1
+    _READ_CONFIG       = (0x85, 1)
+    _WRITE_CONFIG      = 0x81
     _READ              = 0x03
     _READ_QUAD         = 0x6B
     _WRITE             = 0x02
@@ -38,7 +40,7 @@ class N25Q:
         for idx, x in enumerate(id):
             log.debug("  %02d: 0x%02x" % (idx, x))
         if((id[0] != 0x20) or (id[1] != 0xBA)):
-            log.error("Error Reading Flash Memory ID: 0x%02x 0x%02x. Should be 0x10 0xba" % (id[0], id[1]))
+            log.error("Error Reading Flash Memory ID: 0x%02x 0x%02x. Should be 0x20 0xba" % (id[0], id[1]))
             log.error("  ID=" + " ".join("%02x" % h for h in id))
             self.initialized = False
             raise Exception("Error Reading Flash Memory ID")
@@ -134,6 +136,16 @@ class N25Q:
     
     def get_id(self):
         return self.cmd(*self._READ_ID)
+
+    def get_config(self):
+        return self.cmd(*self._READ_CONFIG)
+
+    def set_config(self, val):
+        self.write_enable()
+        log.info("WRITING CONFIG: %02x" % (val,))
+        x = self.cmd(bytearray([chr(self._WRITE_CONFIG),val]), 0)
+        self.write_enable(False)
+        return x
 
     def get_nv_config(self):
         return self.cmd(*self._READ_NV_CONFIG)
