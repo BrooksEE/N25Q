@@ -33,6 +33,7 @@ class N25Q:
         self.quad_ok = False
         
     def init_system(self):
+        self.dev.set(self.CTRL_TERM, "mode.quad", 0)
         self.dev.set(self.CTRL_TERM, "pins.holdb", 1)
         self.dev.set(self.CTRL_TERM, "clk_divider", 4)
         id = self.get_id()
@@ -56,6 +57,7 @@ class N25Q:
             self.set_nv_config(x)
             self.enter_4_byte_address_mode()
         self.initialized = True
+        time.sleep(0.125)
         return id
     
     def reset_system(self):
@@ -169,6 +171,7 @@ class N25Q:
     def read(self, addr, num_bytes, quad_mode=True):
         """Read in chunks of 256. Not sure why longer reads are failing, but they are."""
         quad_mode = self.quad_mode_read_ok and quad_mode # make sure quad_mode is OK
+        log.info("READ: QUAD_MODE=" + str(quad_mode))
         d = bytearray()
         try:
             if quad_mode:
