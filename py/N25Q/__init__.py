@@ -57,7 +57,7 @@ class N25Q:
             self.set_nv_config(x)
             self.enter_4_byte_address_mode()
         self.initialized = True
-        time.sleep(0.125)
+        time.sleep(0.25)
         return id
     
     def reset_system(self):
@@ -87,7 +87,7 @@ class N25Q:
             if num_read_bytes > 0:
                 x = bytearray(num_read_bytes)
                 #time.sleep(0.003)
-                self.dev.read(self.DATA_TERM, 0, x)
+                self.dev.read(self.DATA_TERM, 0, x, 10000)
         finally:
             self.dev.set(self.CTRL_TERM, "csb1", 1)
         return x
@@ -169,7 +169,6 @@ class N25Q:
         
 
     def read(self, addr, num_bytes, quad_mode=True):
-        """Read in chunks of 256. Not sure why longer reads are failing, but they are."""
         quad_mode = self.quad_mode_read_ok and quad_mode # make sure quad_mode is OK
         log.info("READ: QUAD_MODE=" + str(quad_mode))
         d = bytearray()
@@ -182,7 +181,7 @@ class N25Q:
                     self._READ_QUAD if quad_mode else self._READ,
                 ])
                 if self.num_addr_bits > 24:
-                    c.append((addr >> 23) & 0xFF)
+                    c.append((addr >> 24) & 0xFF)
                 c.append((addr >> 16) & 0xFF)
                 c.append((addr >>  8) & 0xFF)
                 c.append((addr >>  0) & 0xFF)
@@ -196,7 +195,7 @@ class N25Q:
                         self._READ_QUAD if quad_mode else self._READ,
                         ])
                     if self.num_addr_bits > 24:
-                        c.append((addr >> 23) & 0xFF)
+                        c.append((addr >> 24) & 0xFF)
                     c.append((addr >> 16) & 0xFF)
                     c.append((addr >>  8) & 0xFF)
                     c.append((addr >>  0) & 0xFF)
@@ -223,7 +222,7 @@ class N25Q:
         self.write_enable()
         c = bytearray([self._WRITE])
         if self.num_addr_bits > 24:
-            c.append((addr >> 23) & 0xFF)
+            c.append((addr >> 24) & 0xFF)
         c.append((addr >> 16) & 0xFF)
         c.append((addr >>  8) & 0xFF)
         c.append((addr >>  0) & 0xFF)
@@ -269,7 +268,7 @@ class N25Q:
 #        time.sleep(0.01)
         c = bytearray([       self._SUBSECTOR_ERASE, ])
         if self.num_addr_bits > 24:
-            c.append((addr >> 23) & 0xFF)
+            c.append((addr >> 24) & 0xFF)
         c.append((addr >> 16) & 0xFF)
         c.append((addr >>  8) & 0xFF)
         c.append((addr >>  0) & 0xFF)
@@ -376,7 +375,7 @@ class N25Q:
         if True:
             rimg = self.read(addr, len(image), quad_mode=quad_mode)
             t1 = time.time()
-            if(rimg == image):
+            if(str(rimg) == image):
                 log.info("Verification Passed")
             else:
                 for idx, (x,y) in enumerate(zip(image, rimg)):
