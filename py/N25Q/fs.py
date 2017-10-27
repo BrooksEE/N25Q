@@ -14,7 +14,8 @@ import math, struct
 #  2 bytes - CRC
 #  2 bytes - width
 #  2 bytes - height
-#  8 bytes - reserved
+#  2 bytes - kern_width
+#  6 bytes - reserved
 
 # File Types
 file_types = dict(
@@ -34,12 +35,14 @@ class FileSystem(dict):
         self.version = 1
         self.files=[]
         
-    def add_file(self, filename, data, file_type, width=None, height=None):
+    def add_file(self, filename, data, file_type, width=None, height=None, kern_width=None):
         x = dict(data=data, type=file_type)
         if width:
             x["width"] = width
         if height:
             x["height"] = height
+        if kern_width:
+            x["kern_width"] = kern_width
         self[filename[:8]] = x
         self.files.append(filename[:8])
 
@@ -61,6 +64,10 @@ class FileSystem(dict):
             y += "\x00\x00"
         if "height" in v:
             y += struct.pack("H", v["height"])
+        else:
+            y += "\x00\x00"
+        if "kern_width" in v:
+            y += struct.pack("H", v["kern_width"])
         else:
             y += "\x00\x00"
         x = self.pad(self.pad(k[:8], 8, pad_char="\x00") + y, 32)
@@ -94,8 +101,8 @@ class FileSystem(dict):
     def decode_file_record(cls, record):
         name = record[:8].replace("\x00","")
         addr, size, type, crc = struct.unpack("IIHH", record[8:20])
-        width,height = struct.unpack("HH", record[20:24])
-        return dict(name=name, addr=addr, size=size, type=type, crc=crc, width=width, height=height)
+        width,height,kern_width = struct.unpack("HH", record[20:26])
+        return dict(name=name, addr=addr, size=size, type=type, crc=crc, width=width, height=height,kern_width=kern_width)
 
     @classmethod
     def load(cls, f):
@@ -116,7 +123,7 @@ class FileSystem(dict):
         
             records.append(record)
         for record in records:
-            self.add_file(record["name"], raw[record["addr"]:record["addr"]+record["size"]], record["type"], width=record["width"], height=record["height"])
+            self.add_file(record["name"], raw[record["addr"]:record["addr"]+record["size"]], record["type"], width=record["width"], height=record["height"],kern_width=record["kern_width"])
             self[record["name"]]["addr"] = record["addr"]
             self[record["name"]]["size"] = record["size"]
             
