@@ -11,7 +11,7 @@ class N25Q:
     _WRITE_LOCK        = 0xE5
     _READ_FLAG_STATUS  = (0x70, 1)
     _CLEAR_FLAG_STATUS = 0x50
-    _READ_ID           = (0x9e, 20)
+    _READ_ID           = (0x9f, 20)
     _READ_NV_CONFIG    = (0xB5, 2)
     _WRITE_NV_CONFIG   = 0xB1
     _READ_CONFIG       = (0x85, 1)
@@ -38,9 +38,10 @@ class N25Q:
         self.dev.set(self.CTRL_TERM, "clk_divider", 4)
         id = self.get_id()
         log.info("READ_ID")
+        self.id_ = str(id[0:2])
         for idx, x in enumerate(id):
             log.debug("  %02d: 0x%02x" % (idx, x))
-        if((id[0] != 0x20) or (id[1] != 0xBA)):
+        if(self.id_ not in [ "\x20\xBA", "\x9d\x60" ]):
             log.error("Error Reading Flash Memory ID: 0x%02x 0x%02x. Should be 0x20 0xba" % (id[0], id[1]))
             log.error("  ID=" + " ".join("%02x" % h for h in id))
             self.initialized = False
@@ -58,6 +59,17 @@ class N25Q:
             self.enter_4_byte_address_mode()
         self.initialized = True
         time.sleep(0.25)
+
+        # set quad mode bit to true
+        
+        if self.id_ == "\x9d\x60":
+            if self.get_status() & 0x40 == 0: # check if quad mode en is true
+                self.write_enable()
+                c = bytearray([self._WRITE_STATUS])
+                c.append(0x40)
+                self.cmd(c)
+                self.write_enable(False)
+
         return id
     
     def reset_system(self):
@@ -127,6 +139,7 @@ class N25Q:
         x = self.cmd(*self._READ_STATUS)[0]
         return dict(
             write_disabled      = (x >> 7) & 0x1,
+            quad_enabled        = (x >> 6) & 0x1,
             protect_bot_aligned = (x >> 5) & 0x1,
             block_protect       = ((x >> 2) & 0x7) + ((x >> 3) & 0x8),
             write_en_latch      = (x>>1) & 0x1,
@@ -167,6 +180,7 @@ class N25Q:
             self.cmd(self._WRITE_DISABLE)
             self.dev.set(self.CTRL_TERM, "pins.wpb", 0)
         
+
 
     def read(self, addr, num_bytes, quad_mode=True):
         quad_mode = self.quad_mode_read_ok and quad_mode # make sure quad_mode is OK
@@ -283,7 +297,7 @@ class N25Q:
         self.cmd(self._ENTER_4_BYTE_ADDRESS_MODE)
         self.write_enable(False)
 
-    def write_image(self, image, addr=0, verify_while_writing=False, bulk_erase=True, quad_mode=True, ui_callback=None):
+    def write_image(self, image, addr=0, verify_while_writing=False, bulk_erase=True, quad_mode=False, ui_callback=None):
         """
             ui_callback(cur,total,seconds)
                 Called from write_image with current progress and total size and elapsed seconds.
@@ -368,7 +382,7 @@ class N25Q:
         except:
             pass # because in ui mode stdout might not be open
         self.verify_image(image, addr0, quad_mode=quad_mode)
-            
+
     def verify_image(self, image, addr=0, quad_mode=True):
         t0 = time.time()
         log.info("VERIFYING IMAGE")
