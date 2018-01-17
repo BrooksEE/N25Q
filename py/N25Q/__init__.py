@@ -63,7 +63,7 @@ class N25Q:
         # set quad mode bit to true
         
         if self.id_ == "\x9d\x60":
-            if self.get_status() & 0x40 == 0: # check if quad mode en is true
+            if self.get_status()["quad_enabled"] & 0x40 == 0: # check if quad mode en is true
                 self.write_enable()
                 c = bytearray([self._WRITE_STATUS])
                 c.append(0x40)
@@ -135,16 +135,19 @@ class N25Q:
                 self.dev.set(self.CTRL_TERM, "pins.sclk", 0)
             buf[pos] = x
         
-    def get_status(self):
+    def get_status(self, raw=False):
         x = self.cmd(*self._READ_STATUS)[0]
-        return dict(
-            write_disabled      = (x >> 7) & 0x1,
-            quad_enabled        = (x >> 6) & 0x1,
-            protect_bot_aligned = (x >> 5) & 0x1,
-            block_protect       = ((x >> 2) & 0x7) + ((x >> 3) & 0x8),
-            write_en_latch      = (x>>1) & 0x1,
-            write_in_progress   = (x>>0) & 0x1,
-        )
+        if raw:
+            return x
+        else:
+            return dict(
+                write_disabled      = (x >> 7) & 0x1,
+                quad_enabled        = (x >> 6) & 0x1,
+                protect_bot_aligned = (x >> 5) & 0x1,
+                block_protect       = ((x >> 2) & 0x7) + ((x >> 3) & 0x8),
+                write_en_latch      = (x>>1) & 0x1,
+                write_in_progress   = (x>>0) & 0x1,
+            )
 
     def get_flags(self):
         return self.cmd(*self._READ_FLAG_STATUS)
@@ -297,7 +300,7 @@ class N25Q:
         self.cmd(self._ENTER_4_BYTE_ADDRESS_MODE)
         self.write_enable(False)
 
-    def write_image(self, image, addr=0, verify_while_writing=False, bulk_erase=True, quad_mode=False, ui_callback=None):
+    def write_image(self, image, addr=0, verify_while_writing=False, bulk_erase=True, quad_mode=True, ui_callback=None):
         """
             ui_callback(cur,total,seconds)
                 Called from write_image with current progress and total size and elapsed seconds.
