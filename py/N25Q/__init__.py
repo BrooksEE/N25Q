@@ -366,7 +366,7 @@ class N25Q:
                 try:
                     addr = write_subsector(addr)
                     break
-                except Exception,e:
+                except Exception as e:
                     if str(e).startswith("Read verify failed"):
                         if retry >= 0:
                             log.info(str(subsector_idx) + " " + str(e) + ". Retrying " + str(retry))
@@ -397,7 +397,7 @@ class N25Q:
             else:
                 for idx, (x,y) in enumerate(zip(image, rimg)):
                     if x != y:
-                        print "Mismatch: 0x%x  0x%02x/0x%02x" % (idx+addr, x, y)
+                        print("Mismatch: 0x%x  0x%02x/0x%02x" % (idx+addr, x, y))
                     #break
                 raise Exception("Verification Failed at Location: 0x%x" % idx)
         else:
@@ -411,8 +411,8 @@ class N25Q:
     
                 if(r0 != image[iaddr:iaddr+256]):
                     log.error("Page mismatch at addr=" + hex(addr0))
-                    print "Read:", str(r0).encode("hex")
-                    print "Actu:", str(image[iaddr:iaddr+256]).encode("hex")
+                    print("Read:", str(r0).encode("hex"))
+                    print("Actu:", str(image[iaddr:iaddr+256]).encode("hex"))
                     mismatch += 1
     
                 if(page % 16 == 0): # update page count printing occasionally 
