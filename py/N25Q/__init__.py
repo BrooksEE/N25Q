@@ -38,11 +38,11 @@ class N25Q:
         self.dev.set(self.CTRL_TERM, "clk_divider", 4)
         id = self.get_id()
         log.info("READ_ID")
-        self.id_ = str(id[0:2])
+        self.id_ = id[0:2]
         for idx, x in enumerate(id):
             log.debug("  %02d: 0x%02x" % (idx, x))
-        if(self.id_ not in [ "\x20\xBA", "\x9d\x60" ]):
-            log.error("Error Reading Flash Memory ID: 0x%02x 0x%02x. Should be 0x20 0xba" % (id[0], id[1]))
+        if(self.id_ not in [ b"\x20\xBA", b"\x9d\x60" ]):
+            log.error("Error Reading Flash Memory ID: 0x%02x 0x%02x. Should be 0x20 0xba or \x96\x60" % (id[0], id[1]))
             log.error("  ID=" + " ".join("%02x" % h for h in id))
             self.initialized = False
             raise Exception("Error Reading Flash Memory ID")
@@ -62,7 +62,7 @@ class N25Q:
 
         # set quad mode bit to true
         
-        if self.id_ == "\x9d\x60":
+        if self.id_ == b"\x9d\x60":
             if self.get_status()["quad_enabled"] & 0x40 == 0: # check if quad mode en is true
                 self.write_enable()
                 c = bytearray([self._WRITE_STATUS])
@@ -171,7 +171,7 @@ class N25Q:
     def set_nv_config(self, config):
         self.write_enable()
         log.info("WRITING NV CONFIG: %02x %02x" % (config[0], config[1]))
-        x = self.cmd(bytearray(chr(self._WRITE_NV_CONFIG)) + config, 0)
+        x = self.cmd(bytes([self._WRITE_NV_CONFIG]) + config, 0)
         self.write_enable(False)
         return x
 
@@ -308,7 +308,7 @@ class N25Q:
         """
 #        image = image[:4096*1]
         addr0 = addr
-        num_subsectors = (len(image)+4095)/4096
+        num_subsectors = int((len(image)+4095)/4096)
 
         if str(type(image)) == "<type 'numpy.ndarray'>":
             image = image.tobytes()
@@ -322,7 +322,7 @@ class N25Q:
             def default_callback(c,t,sec):
                 m, s = divmod ( sec, 60 )
                 N = 50
-                n0 = c * N / t
+                n0 = int(c * N / t)
                 sys.stdout.write("\r%5d/%5d |" % (c+1,t) + ("=" * n0) + (" " * (N-n0)) + "| %02d:%02d" % (m,s))
                 sys.stdout.flush()
             ui_callback=default_callback
