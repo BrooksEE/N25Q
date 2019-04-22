@@ -31,7 +31,7 @@ class FileSystem(dict):
     def __init__(self):
         dict.__init__(self)
         self.bs   = 2**12
-        self.sync = 'BROOKSEE'
+        self.sync = b'BROOKSEE'
         self.version = 1
         self.files=[]
         
@@ -46,7 +46,7 @@ class FileSystem(dict):
         self[filename[:8]] = x
         self.files.append(filename[:8])
 
-    def pad(self, x, size=32, pad_char="\xFF"):
+    def pad(self, x, size=32, pad_char=b"\xFF"):
         return x + (pad_char * (size-len(x)))
 
     def file_record(self, k, v, addr):
@@ -61,16 +61,16 @@ class FileSystem(dict):
         if "width" in v:
             y += struct.pack("H", v["width"])
         else:
-            y += "\x00\x00"
+            y += b"\x00\x00"
         if "height" in v:
             y += struct.pack("H", v["height"])
         else:
-            y += "\x00\x00"
+            y += b"\x00\x00"
         if "kern_width" in v:
             y += struct.pack("H", v["kern_width"])
         else:
-            y += "\x00\x00"
-        x = self.pad(self.pad(k[:8], 8, pad_char="\x00") + y, 32)
+            y += b"\x00\x00"
+        x = self.pad(self.pad(k[:8].encode("ascii"), 8, pad_char=b"\x00") + y, 32)
         return x
     
     def dump(self, f, header_only=False):
@@ -87,19 +87,19 @@ class FileSystem(dict):
             v["__size"] = size
             addr += size
             so_far += 32
-        f.write("\x00" * 32)
+        f.write(b"\x00" * 32)
         so_far += 32
-        f.write("\xFF" * (self.bs - (so_far % self.bs)))
+        f.write(b"\xFF" * (self.bs - (so_far % self.bs)))
         if header_only:
             return
         for k in self.files:
             v = self[k]
             f.write(v["data"])
-            f.write("\x00" * (v["__size"] - len(v["data"])))
+            f.write(b"\x00" * (v["__size"] - len(v["data"])))
 
     @classmethod
     def decode_file_record(cls, record):
-        name = record[:8].replace("\x00","")
+        name = record[:8].replace(b"\x00",b"")
         addr, size, type, crc = struct.unpack("IIHH", record[8:20])
         width,height,kern_width = struct.unpack("HH", record[20:26])
         return dict(name=name, addr=addr, size=size, type=type, crc=crc, width=width, height=height,kern_width=kern_width)
@@ -109,7 +109,7 @@ class FileSystem(dict):
         self = cls()
         raw = f.read()
         header = self.decode_file_record(raw[:32])
-        if(header["name"] != "BROOKSEE"):
+        if(header["name"] != b"BROOKSEE"):
             raise Exception("UNKNOWN FILESYSTEM")
         #print "HEADER=", header
         records = []
@@ -133,7 +133,7 @@ class FileSystem(dict):
 def get_file_info(flash, filename):
     raw    = flash.read(0, 32)
     header = FileSystem.decode_file_record(raw)
-    if(header["name"] != "BROOKSEE"):
+    if(header["name"] != b"BROOKSEE"):
         raise Exception("UNKNOWN FILESYSTEM")
 
     addr = 32

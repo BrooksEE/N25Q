@@ -392,14 +392,13 @@ class N25Q:
         if True:
             rimg = self.read(addr, len(image), quad_mode=quad_mode)
             t1 = time.time()
-            if(str(rimg) == image):
+            if(rimg == image):
                 log.info("Verification Passed")
             else:
                 for idx, (x,y) in enumerate(zip(image, rimg)):
                     if x != y:
                         print("Mismatch: 0x%x  0x%02x/0x%02x" % (idx+addr, x, y))
-                    #break
-                raise Exception("Verification Failed at Location: 0x%x" % idx)
+                        raise Exception("Verification Failed")
         else:
             mismatch = 0
             N = 50
