@@ -269,7 +269,7 @@ class N25Q:
         spinner = ["-",r'\\'[0], "|", r'/', "-", r'\\'[0], "|", r'/']
         while self.get_status()["write_in_progress"]:
             t1 = int(time.time()-t0)
-            m = t1/60
+            m = int(t1/60)
             s = t1 - m * 60
             sys.stdout.write("\rBulk Erasing:   %s    %02d:%02d" % (spinner[0], m,s))
             sys.stdout.flush()
