@@ -271,11 +271,12 @@ class N25Q:
             t1 = int(time.time()-t0)
             m = int(t1/60)
             s = t1 - m * 60
-            sys.stdout.write("\rBulk Erasing:   %s    %02d:%02d" % (spinner[0], m,s))
-            sys.stdout.flush()
+            if sys.stdout is not None: 
+                sys.stdout.write("\rBulk Erasing:   %s    %02d:%02d" % (spinner[0], m,s))
+                sys.stdout.flush()
             spinner.append(spinner.pop(0))
             time.sleep(0.1)
-        sys.stdout.write("\n")
+        if sys.stdout is not None: sys.stdout.write("\n")
         self.write_enable(False)
 
     def subsector_erase(self, addr):
@@ -419,8 +420,12 @@ class N25Q:
                     t1 = int(time.time()-t0)
                     m = t1/60
                     s = t1 - m * 60
-                    sys.stdout.write("\r%5d/%5d |" % (page/16,pages/16) + ("." * n0) + (" " * (N-n0)) + "| %02d:%02d" % (m,s))
-                    sys.stdout.flush()
+                    try:
+                        sys.stdout.write("\r%5d/%5d |" % (page/16,pages/16) + ("." * n0) + (" " * (N-n0)) + "| %02d:%02d" % (m,s))
+                        sys.stdout.flush()
+                    except:
+                        pass # ui mode stdout sometimes is None
+                       
                     
             if mismatch:
                 raise Exception(str(mismatch), " page mismatch(s) found")
